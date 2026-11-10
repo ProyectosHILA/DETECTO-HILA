@@ -1,0 +1,6 @@
+{
+  "name": "DETECTO - Sepsis Oncología Pediátrica",
+  "description": "Sistema de tamizaje, clasificación y soporte en decisiones clínicas para sepsis en oncología pediátrica",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
