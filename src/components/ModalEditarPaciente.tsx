@@ -14,6 +14,7 @@ export const ModalEditarPaciente: React.FC<ModalEditarPacienteProps> = ({
   onCerrar,
 }) => {
   const [identificacionPaciente, setIdentificacionPaciente] = useState(paciente.identificacionPaciente || "");
+  const [nombre, setNombre] = useState(paciente.nombre || "");
   const [diagnosticoTriage, setDiagnosticoTriage] = useState(paciente.diagnosticoTriage);
   const [diagnosticoUrgencias, setDiagnosticoUrgencias] = useState(paciente.diagnosticoUrgencias);
   const [diagnosticoDetecto, setDiagnosticoDetecto] = useState(paciente.diagnosticoDetecto || "");
@@ -25,6 +26,7 @@ export const ModalEditarPaciente: React.FC<ModalEditarPacienteProps> = ({
     onGuardar({
       ...paciente,
       identificacionPaciente: identificacionPaciente.trim(),
+      nombre: nombre.trim(),
       diagnosticoTriage: diagnosticoTriage.trim(),
       diagnosticoUrgencias: diagnosticoUrgencias.trim(),
       diagnosticoDetecto: diagnosticoDetecto.trim(),
@@ -52,17 +54,32 @@ export const ModalEditarPaciente: React.FC<ModalEditarPacienteProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">
-              Número de Identificación del Paciente
-            </label>
-            <input
-              type="text"
-              value={identificacionPaciente}
-              onChange={(e) => setIdentificacionPaciente(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
-              required
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Cédula / Identificación del Paciente
+              </label>
+              <input
+                type="text"
+                value={identificacionPaciente}
+                onChange={(e) => setIdentificacionPaciente(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Nombre del Paciente
+              </label>
+              <input
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="No obligatorio nombre completo"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
           </div>
 
           <div>

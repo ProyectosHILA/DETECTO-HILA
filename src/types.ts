@@ -102,7 +102,12 @@ export interface CasoSepsis {
   tiempos: TiemposData;
 }
 
-export type RolUsuario = "triage" | "medico_urgencias" | "grupo_detecto" | "super_usuario";
+export type RolUsuario =
+  | "triage"
+  | "medico_urgencias"
+  | "grupo_detecto"
+  | "laboratorio"
+  | "super_usuario";
 
 export interface UsuarioSesion {
   rol: RolUsuario;
@@ -161,13 +166,224 @@ export interface PacienteRegistro {
   timestampPasoFase3?: number;
   timestampFinalizado?: number;
   
+  // Validación Fase 2 y Control de Estados de Botones (Fase 2 y Fase 3)
+  categoriaTriageValidada?: 1 | 2 | 3;
+  categoriaTriageValidadaLabel?: string;
+  motivoCambioCategoria?: string;
+  reportadoADetecto?: boolean;
+  habilitadoCierreAnticipado?: boolean;
+  motivoCierreAnticipado?: string;
+
+  estadosModulos?: {
+    fase1Validada: boolean;
+    checklist1Completado: boolean;
+    laboratoriosCompletado: boolean;
+    anexoCompletado: boolean;
+  };
+
+  // Tiempos granulares por submódulo para analítica de cuellos de botella en Tablero de Control
+  tiemposSubmodulos?: {
+    timestampValidacionTriage?: number;
+    validacionTriageSegundos?: number;
+    timestampChecklist1?: number;
+    checklist1Segundos?: number;
+    timestampLaboratorios?: number;
+    laboratoriosSegundos?: number;
+    laboratoriosCompletadoPor?: "fase2" | "fase3" | "laboratorios";
+    timestampAnexo?: number;
+    anexoSegundos?: number;
+    anexoTipo?: string;
+  };
+
   // Formulario digitalizado Lista de Chequeo 1 (PDF) - Evaluación por Equipo de Sepsis
   formularioEquipoSepsis?: FormularioEquipoSepsis;
+
+  // Módulo 3: Resultados de Laboratorio y Fórmulas PaFiO2 / SpFiO2 + Hemocultivos A3
+  laboratorios?: LaboratoriosDOMData;
+
+  // Módulo 4: Anexos digitalizados según clasificación (Anexo 2 Rojo, Anexo 3 Amarillo, Anexo 4 Verde)
+  anexo2Data?: Anexo2ChoqueData;
+  anexo3Data?: Anexo3AlertaSepsisData;
+  anexo4Data?: Anexo4BajaProbabilidadData;
   
   // Papelera
   enPapelera?: boolean;
   fechaEliminacion?: number;
   diasRestantes?: number;
+}
+
+export interface ParaclinicoEntry {
+  checked?: boolean;
+  fechaHora?: string;
+  valor?: string;
+}
+
+export interface LaboratoriosDOMData {
+  hemograma?: ParaclinicoEntry;
+  tpInr?: ParaclinicoEntry;
+  fibrinogeno?: ParaclinicoEntry;
+  dimeroD?: ParaclinicoEntry;
+  fibrinogenoDimeroD?: ParaclinicoEntry;
+  pcr?: ParaclinicoEntry;
+  astAlt?: ParaclinicoEntry;
+  bilirrubina?: ParaclinicoEntry;
+  creatinina?: ParaclinicoEntry;
+  electrolitos?: ParaclinicoEntry;
+  aislamientosPrevios?: ParaclinicoEntry;
+  lactatoSerico?: ParaclinicoEntry;
+  glucosa?: ParaclinicoEntry;
+  monitoreoGastoUrinario?: ParaclinicoEntry;
+  gasesPaFiO2?: {
+    checked?: boolean;
+    pao2?: string;
+    fio2?: string;
+    resultado?: string;
+    fechaHora?: string;
+  };
+  spFiO2?: {
+    checked?: boolean;
+    spo2?: string;
+    fio2?: string;
+    resultado?: string;
+    fechaHora?: string;
+  };
+  hemocultivosA3?: {
+    tomado?: boolean;
+    fechaHora?: string;
+    detalle?: string;
+  };
+  observaciones?: string;
+}
+
+export interface Anexo2ChoqueData {
+  pacienteNombre?: string;
+  edadAnos?: string;
+  edadMeses?: string;
+  pesoKg?: string;
+  horaInicio?: string;
+  criteriosUci?: {
+    alteracionSensorio?: boolean;
+    sobrecargaVolumen?: boolean;
+    hipotensionArterial?: boolean;
+    disfuncionMiocardica?: boolean;
+    signosMalaPerfusion?: boolean;
+    dificultadRespiratoria?: boolean;
+  };
+  ordenesInmediatas?: {
+    oxigenoFio2100?: boolean;
+    boloIv10?: boolean;
+    tipoLiquido?: "lactato_ringer" | "ssn_09" | "";
+    canalizarCateter?: boolean;
+  };
+  antibiotico?: {
+    meropenem?: boolean;
+    cefepime?: boolean;
+    pipTazo?: boolean;
+    vancomicina?: boolean;
+    meropenemHora?: string;
+    meropenemEnfermero?: string;
+    vancomicinaHora?: string;
+    vancomicinaEnfermero?: string;
+  };
+  monitoreo?: {
+    monitorizacionContinua?: boolean;
+    respuestaBolo?: "si_mejoria" | "no_mejoria" | "";
+    segundoBolo?: boolean;
+    vasoactivosPeriferica?: boolean;
+    considerarHidrocortisona?: boolean;
+    insuficienciaSuprarrenal?: boolean;
+    corregirHipoglicemia?: boolean;
+    corregirHipocalcemia?: boolean;
+    considerarIntubacion?: boolean;
+    notificarUci?: boolean;
+  };
+}
+
+export interface Anexo3AlertaSepsisData {
+  pacienteNombre?: string;
+  edadAnos?: string;
+  edadMeses?: string;
+  pesoKg?: string;
+  horaInicio?: string;
+  ordenesInmediatas?: {
+    identificarFoco?: boolean;
+    clasificarRiesgoMamutts?: boolean;
+    hemocultivos?: boolean;
+    laboratoriosDom?: boolean;
+  };
+  antibiotico?: {
+    escenarioA_cefepime?: boolean;
+    escenarioA_hora?: string;
+    escenarioA_enfermero?: string;
+    escenarioB_piptazo?: boolean;
+    escenarioB_hora?: string;
+    escenarioB_enfermero?: string;
+    vancomicinaIndicaciones?: {
+      alertaChoque?: boolean;
+      bacteriemiaCocos?: boolean;
+      infeccionOsteoarticular?: boolean;
+      infeccionPiel?: boolean;
+      neumoniaComplicada?: boolean;
+      sospechaCateter?: boolean;
+      sospechaCocos?: boolean;
+    };
+  };
+  reevaluacionHora?: {
+    hipotension?: boolean;
+    malaPerfusion?: boolean;
+    compromisoOrganos?: boolean;
+    resultado?: "reclasificar_choque" | "continuar_actual" | "";
+  };
+  notificacionesUcip?: {
+    disfuncionCardiovascular?: boolean;
+    disfuncionMiocardica?: boolean;
+    dificultadRespiratoria?: boolean;
+    alteracionSensorio?: boolean;
+  };
+}
+
+export interface Anexo4BajaProbabilidadData {
+  pacienteNombre?: string;
+  edadAnos?: string;
+  edadMeses?: string;
+  pesoKg?: string;
+  horaInicio?: string;
+  antibiotico?: {
+    escenarioA_cefepime?: boolean;
+    escenarioA_hora?: string;
+    escenarioA_enfermero?: string;
+    escenarioB_piptazo?: boolean;
+    escenarioB_hora?: string;
+    escenarioB_enfermero?: string;
+    vancomicinaIndicaciones?: {
+      alertaChoque?: boolean;
+      bacteriemiaCocos?: boolean;
+      infeccionOsteoarticular?: boolean;
+      infeccionPiel?: boolean;
+      neumoniaComplicada?: boolean;
+      sospechaCateter?: boolean;
+      sospechaCocos?: boolean;
+    };
+  };
+  paraclinicosIniciales?: {
+    hemocultivos2Sets?: boolean;
+    hemograma?: boolean;
+    pcr?: boolean;
+    lactatoSerico?: boolean;
+    bunCreatinina?: boolean;
+    electrolitos?: boolean;
+    astAlt?: boolean;
+    procalcitonina?: boolean;
+    otrosSegunFoco?: boolean;
+  };
+  imagenes?: {
+    rxTorax?: boolean;
+    ecografiaAbdominal?: boolean;
+    rnmCerebral?: boolean;
+  };
+  monitoreo?: {
+    resultado?: "deterioro_activar" | "no_deterioro" | "";
+  };
 }
 
 export interface FormularioEquipoSepsis {

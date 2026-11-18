@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { PacienteRegistro, UsuarioSesion, CRITERIOS_TAMIZAJE_SEPSIS } from "../types";
 import { FormularioEquipoSepsisPdf } from "./FormularioEquipoSepsisPdf";
+import { FormularioLaboratorios } from "./FormularioLaboratorios";
+import { FormularioAnexo2Rojo } from "./FormularioAnexo2Rojo";
+import { FormularioAnexo3Amarillo } from "./FormularioAnexo3Amarillo";
+import { FormularioAnexo4Verde } from "./FormularioAnexo4Verde";
+import { TableroControlDashboard } from "./TableroControlDashboard";
 import * as XLSX from "xlsx";
 import {
   Database,
@@ -27,6 +32,8 @@ import {
   Activity,
   HeartPulse,
   Users,
+  BarChart3,
+  Table2,
 } from "lucide-react";
 
 interface BaseDatosPacientesProps {
@@ -55,7 +62,14 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
   const [terminoBusqueda, setTerminoBusqueda] = useState<string>("");
   const [filtroEstado, setFiltroEstado] = useState<string>("todos");
   const [mostrarPapelera, setMostrarPapelera] = useState<boolean>(false);
+  const [subVista, setSubVista] = useState<"casos" | "tablero">("casos");
   const [pacienteDetalle, setPacienteDetalle] = useState<PacienteRegistro | null>(null);
+  const [ahora, setAhora] = useState<number>(Date.now());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const esSuperUsuario = usuarioActual.rol === "super_usuario";
 
@@ -101,9 +115,11 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
 
     const dataParaExcel = pacientes.map((p) => ({
       "Código Caso": p.codigo,
+      "Nombre Paciente": p.nombre || "",
       "Identificación Paciente": p.identificacionPaciente || "Sin ID",
       "Fecha Ingreso": formatearFecha(p.fechaCreacion),
-      "Categoría Triage": p.categoriaTriageLabel || `Categoría ${p.categoriaTriage || 1}`,
+      "Categoría Triage": p.categoriaTriageValidadaLabel || p.categoriaTriageLabel || `Categoría ${p.categoriaTriage || 1}`,
+      "Motivo Cambio Categoría": p.motivoCambioCategoria || "",
       "Puntos Tamizaje (0-8)": p.puntajeTamizaje ?? 0,
       "Estado General": p.estado,
       "Fase 1 (Triage)": p.fase1Completada ? "COMPLETADA (✓)" : "NO COMPLETADA (✗)",
@@ -117,6 +133,12 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
       "Fase 3 (DETECTO)": p.fase3Completada ? "COMPLETADA (✓)" : "NO TRASCENDIÓ (✗)",
       "Tiempo Fase 3": formatearTiempo(p.tiempoFase3Segundos),
       "Diagnóstico / Obs DETECTO": p.diagnosticoDetecto || "",
+      "Submódulo Validación Triage": formatearTiempo(p.tiemposSubmodulos?.validacionTriageSegundos),
+      "Submódulo Checklist 1": formatearTiempo(p.tiemposSubmodulos?.checklist1Segundos),
+      "Submódulo Laboratorios": formatearTiempo(p.tiemposSubmodulos?.laboratoriosSegundos),
+      "Origen Laboratorios": p.tiemposSubmodulos?.laboratoriosCompletadoPor || "",
+      "Submódulo Anexo Clínico": formatearTiempo(p.tiemposSubmodulos?.anexoSegundos),
+      "Cierre Anticipado": p.habilitadoCierreAnticipado ? `SÍ (${p.motivoCierreAnticipado || ""})` : "NO",
       "Tiempo Total Acumulado": formatearTiempo(p.tiempoTotalSegundos),
     }));
 
@@ -180,40 +202,72 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
               <h2 className="text-xl sm:text-2xl font-black text-slate-900">
                 {mostrarPapelera
                   ? "Papelera de Reciclaje (Super Usuario)"
-                  : "Base de Datos de Pacientes"}
+                  : "Centro de Control de Casos"}
               </h2>
               <p className="text-xs text-slate-500">
                 {mostrarPapelera
                   ? "Los registros eliminados se almacenan aquí y desaparecen automáticamente a los 10 días."
-                  : "Historial completo de trazabilidad por fases (Fase 1, 2 y 3)."}
+                  : "Historial completo de trazabilidad por fases y Tablero de Control analítico."}
               </p>
             </div>
           </div>
 
-          {/* Filters Bar */}
+          {/* Sub-tabs & Filters Bar */}
           {!mostrarPapelera && (
             <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[220px]">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Buscar paciente o HC..."
-                  value={terminoBusqueda}
-                  onChange={(e) => setTerminoBusqueda(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-sky-500"
-                />
+              {/* Ventana Tab Selector: Registro de Casos | Tablero de Control */}
+              <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSubVista("casos")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                    subVista === "casos"
+                      ? "bg-[#0f2b5c] text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Table2 className="w-3.5 h-3.5" />
+                  <span>Registro de Casos</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubVista("tablero")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                    subVista === "tablero"
+                      ? "bg-[#0f2b5c] text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Tablero de Control</span>
+                </button>
               </div>
 
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-sky-500"
-              >
-                <option value="todos">Todos los estados</option>
-                <option value="completados">3 Fases Completadas (Verdes)</option>
-                <option value="pendientes">Pendientes en Curso</option>
-                <option value="descartados">Descartados en Urgencias</option>
-              </select>
+              {subVista === "casos" && (
+                <>
+                  <div className="relative min-w-[200px]">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Buscar paciente o HC..."
+                      value={terminoBusqueda}
+                      onChange={(e) => setTerminoBusqueda(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+
+                  <select
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="todos">Todos los estados</option>
+                    <option value="completados">3 Fases Completadas (Verdes)</option>
+                    <option value="pendientes">Pendientes en Curso</option>
+                    <option value="descartados">Descartados en Urgencias</option>
+                  </select>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -288,8 +342,14 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
               </div>
             )}
           </div>
+        ) : subVista === "tablero" ? (
+          /* VIEW 2B: TABLERO DE CONTROL ANALÍTICO */
+          <TableroControlDashboard
+            pacientes={pacientes}
+            onSeleccionarPacienteParaDetalle={(p) => setPacienteDetalle(p)}
+          />
         ) : (
-          /* VIEW 2: TABLA PRINCIPAL DE PACIENTES CON 3 COLUMNAS DE FASES */
+          /* VIEW 2A: TABLA PRINCIPAL DE PACIENTES CON 3 COLUMNAS DE FASES */
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
@@ -353,7 +413,12 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                               </span>
                             )}
                           </div>
-                          <div className="font-mono font-black text-slate-900 text-sm mt-1">
+                          {p.nombre && (
+                            <div className="font-black text-slate-900 text-sm mt-1 leading-tight">
+                              {p.nombre}
+                            </div>
+                          )}
+                          <div className="font-mono font-bold text-sky-900 text-xs mt-0.5">
                             ID: {p.identificacionPaciente || "Sin identificación"}
                           </div>
                           <span className="text-[10px] text-slate-400">
@@ -400,15 +465,28 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                           )}
                         </td>
 
-                        {/* COLUMNA FASE 3: Check List Verde o Marca Roja si no trascendió */}
+                        {/* COLUMNA FASE 3: Check List Verde o Tiempo en Curso si reportado a DETECTO */}
                         <td className="p-3.5 text-center">
                           {p.fase3Completada ? (
                             <div className="inline-flex flex-col items-center">
                               <span className="bg-emerald-100 text-emerald-700 p-1 rounded-full border border-emerald-300">
                                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                               </span>
-                              <span className="text-[10px] font-bold text-emerald-800 mt-0.5">
-                                {formatearTiempo(p.tiempoFase3Segundos)}
+                              <span className="text-[10px] font-bold text-emerald-800 mt-0.5 font-mono tabular-nums">
+                                {p.tiempoFase3Segundos > 0
+                                  ? formatearTiempo(p.tiempoFase3Segundos)
+                                  : p.timestampPasoFase3 && p.timestampFinalizado
+                                  ? formatearTiempo(Math.max(1, Math.floor((p.timestampFinalizado - p.timestampPasoFase3) / 1000)))
+                                  : "Directo F2"}
+                              </span>
+                            </div>
+                          ) : (p.reportadoADetecto || p.estado === "pendiente_detecto") && p.timestampPasoFase3 ? (
+                            <div className="inline-flex flex-col items-center">
+                              <span className="bg-purple-100 text-purple-700 p-1 rounded-full border border-purple-300 animate-pulse">
+                                <Clock className="w-5 h-5 text-purple-700" />
+                              </span>
+                              <span className="text-[10px] font-black text-purple-800 mt-0.5 font-mono tabular-nums">
+                                {formatearTiempo(Math.max(0, Math.floor((ahora - p.timestampPasoFase3) / 1000)))}
                               </span>
                             </div>
                           ) : (
@@ -552,7 +630,7 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                 </div>
 
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900">
-                  Historia Clínica Digital de Sepsis
+                  Historia Clínica Digital de Sepsis {pacienteDetalle.nombre ? `· ${pacienteDetalle.nombre}` : ""}
                 </h3>
                 <span className="text-xs text-slate-500 font-medium block">
                   Fecha de ingreso: {formatearFecha(pacienteDetalle.fechaCreacion)}
@@ -771,7 +849,7 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                 {pacienteDetalle.formularioEquipoSepsis && (
                   <div className="pt-2">
                     <span className="text-xs font-black uppercase text-[#074c5d] tracking-wider block mb-2">
-                      Lista de Chequeo Oficial (PDF) — Evaluación por Equipo de Sepsis:
+                      Lista de Chequeo 1 — Evaluación por Equipo de Sepsis:
                     </span>
                     <FormularioEquipoSepsisPdf
                       data={pacienteDetalle.formularioEquipoSepsis}
@@ -779,6 +857,55 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                     />
                   </div>
                 )}
+
+                {/* Resultados de Laboratorio */}
+                {pacienteDetalle.laboratorios && Object.keys(pacienteDetalle.laboratorios).length > 0 && (
+                  <div className="pt-2">
+                    <span className="text-xs font-black uppercase text-[#074c5d] tracking-wider block mb-2">
+                      Resultados de Laboratorio y Evaluación DOM:
+                    </span>
+                    <FormularioLaboratorios
+                      data={pacienteDetalle.laboratorios}
+                      categoriaValidada={
+                        pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage || 1
+                      }
+                      soloLectura={true}
+                    />
+                  </div>
+                )}
+
+                {/* Anexo Clínico (2, 3 o 4) */}
+                {(pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage) === 3 &&
+                  pacienteDetalle.anexo2Data &&
+                  Object.keys(pacienteDetalle.anexo2Data).length > 0 && (
+                    <div className="pt-2">
+                      <FormularioAnexo2Rojo
+                        data={pacienteDetalle.anexo2Data}
+                        laboratorios={pacienteDetalle.laboratorios}
+                        soloLectura={true}
+                      />
+                    </div>
+                  )}
+                {(pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage) === 2 &&
+                  pacienteDetalle.anexo3Data &&
+                  Object.keys(pacienteDetalle.anexo3Data).length > 0 && (
+                    <div className="pt-2">
+                      <FormularioAnexo3Amarillo
+                        data={pacienteDetalle.anexo3Data}
+                        soloLectura={true}
+                      />
+                    </div>
+                  )}
+                {(pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage || 1) === 1 &&
+                  pacienteDetalle.anexo4Data &&
+                  Object.keys(pacienteDetalle.anexo4Data).length > 0 && (
+                    <div className="pt-2">
+                      <FormularioAnexo4Verde
+                        data={pacienteDetalle.anexo4Data}
+                        soloLectura={true}
+                      />
+                    </div>
+                  )}
               </div>
 
               {/* TARJETA 3: FASE 3 - EQUIPO DETECTO */}

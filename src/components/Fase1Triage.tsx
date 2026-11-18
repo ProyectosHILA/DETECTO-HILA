@@ -18,6 +18,7 @@ interface Fase1TriageProps {
   pacienteEnEdicion: Partial<PacienteRegistro>;
   onGuardarYPasaAFase2: (datos: {
     identificacionPaciente: string;
+    nombre: string;
     criteriosTamizaje: boolean[];
     puntajeTamizaje: number;
     categoriaTriage: 1 | 2 | 3;
@@ -35,6 +36,9 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
 }) => {
   const [identificacion, setIdentificacion] = useState<string>(
     pacienteEnEdicion.identificacionPaciente || ""
+  );
+  const [nombrePaciente, setNombrePaciente] = useState<string>(
+    pacienteEnEdicion.nombre || ""
   );
 
   // 8 criteria checklist: true / false for each
@@ -79,9 +83,9 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
   const sumatoriaPuntos = criterios.reduce((acc, curr) => acc + (curr ? 1 : 0), 0);
 
   // Determine Category based on user rule:
-  // < 2 -> Categoría 1: BAJA POSIBILIDAD DE SEPSIS (Verde - imagen 2)
-  // 2 o 3 -> Categoría 2: ALERTA DE SEPSIS (SIN DOMᵃ) (Amarillo - imagen 3)
-  // > 3 -> Categoría 3: ALERTA CHOQUE SEPTICOᵇ O DOMᵃ (Rosado/Rojo - imagen 4)
+  // < 2 -> Categoría 1: BAJA POSIBILIDAD DE SEPSIS (Verde)
+  // 2 o 3 -> Categoría 2: ALERTA DE SEPSIS (SIN DOMᵃ) (Amarillo)
+  // > 3 -> Categoría 3: ALERTA CHOQUE SEPTICOᵇ O DOMᵃ (Rosado/Rojo)
   let categoria: 1 | 2 | 3 = 1;
   let categoriaLabel = "BAJA POSIBILIDAD DE SEPSIS";
 
@@ -111,6 +115,7 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
 
     onGuardarYPasaAFase2({
       identificacionPaciente: identificacion.trim(),
+      nombre: nombrePaciente.trim(),
       criteriosTamizaje: criterios,
       puntajeTamizaje: sumatoriaPuntos,
       categoriaTriage: categoria,
@@ -240,28 +245,51 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
             1. Identificación del Paciente
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            Ingrese el número de documento de identidad (Registro Civil, Tarjeta de Identidad, Cédula o Historia Clínica).
+            Ingrese el número de documento de identidad y el nombre para identificar el caso en las siguientes fases.
           </p>
         </div>
 
-        {/* CONTENEDOR DE IDENTIFICACIÓN */}
-        <div className="bg-slate-50 border-2 border-slate-200 focus-within:border-sky-500 rounded-2xl p-5 transition-all">
-          <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-2 flex items-center justify-between">
-            <span>Número de Identificación del Paciente</span>
-            <span className="text-[10px] text-red-500 font-bold">* Obligatorio</span>
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={identificacion}
-            onChange={(e) => setIdentificacion(e.target.value)}
-            placeholder="Ingrese número de identificación o documento..."
-            className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-lg font-mono font-bold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-sky-500 outline-none"
-            autoFocus
-          />
-          <span className="text-[11px] text-slate-500 block mt-1.5">
-            Permite ingresar números de identificación, TI, RC o código de historia clínica.
-          </span>
+        {/* CONTENEDORES LADO A LADO: CÉDULA / IDENTIFICACIÓN + NOMBRE */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* CÉDULA / IDENTIFICACIÓN */}
+          <div className="bg-slate-50 border-2 border-slate-200 focus-within:border-sky-500 rounded-2xl p-5 transition-all">
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-2 flex items-center justify-between">
+              <span>Cédula / Número de Identificación</span>
+              <span className="text-[10px] text-red-500 font-bold">* Obligatorio</span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={identificacion}
+              onChange={(e) => setIdentificacion(e.target.value)}
+              placeholder="Ingrese cédula, TI, RC o HC..."
+              className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-lg font-mono font-bold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-sky-500 outline-none"
+              autoFocus
+            />
+            <span className="text-[11px] text-slate-500 block mt-1.5">
+              Permite ingresar números de identificación, TI, RC o código de historia clínica.
+            </span>
+          </div>
+
+          {/* NOMBRE DEL PACIENTE */}
+          <div className="bg-slate-50 border-2 border-slate-200 focus-within:border-sky-500 rounded-2xl p-5 transition-all">
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-2 flex items-center justify-between">
+              <span>Nombre del Paciente</span>
+              <span className="text-[10px] text-sky-700 font-bold bg-sky-100 px-2 py-0.5 rounded-full">
+                Opcional
+              </span>
+            </label>
+            <input
+              type="text"
+              value={nombrePaciente}
+              onChange={(e) => setNombrePaciente(e.target.value)}
+              placeholder="Nombre o primer nombre y apellido..."
+              className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-lg font-bold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-sky-500 outline-none"
+            />
+            <span className="text-[11px] font-bold text-sky-800 block mt-1.5">
+              ℹ️ No es obligatorio nombre completo (ayuda a identificar rápidamente el caso).
+            </span>
+          </div>
         </div>
 
         {/* 2. TABLA DE TAMIZAJE SEPSIS CON CASILLA PARA CLIQUEAR Y VISTO BUENO VERDE */}
@@ -356,45 +384,167 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
           </div>
         </div>
 
-        {/* 3. BOTÓN/BANNER GRANDE DE CATEGORÍA SEGÚN SUMATORIA */}
-        <div className="space-y-2 pt-2">
+        {/* 3. BOTÓN/BANNER GRANDE DE CATEGORÍA SEGÚN SUMATORIA + RECUADROS DE GUÍA CLÍNICA */}
+        <div className="space-y-4 pt-2">
           <label className="block text-xs font-black uppercase tracking-wider text-slate-600">
             Resultado de Clasificación en Triage:
           </label>
 
-          {/* CATEGORÍA 1: < 2 PUNTOS -> BOTÓN VERDE (IMAGEN 2) */}
+          {/* CATEGORÍA 1: < 2 PUNTOS -> BOTÓN VERDE + ALGORITMO MAMUTTS */}
           {sumatoriaPuntos < 2 && (
-            <div className="w-full bg-[#7ecc61] border-2 border-[#5ba83e] p-5 sm:p-6 rounded-2xl text-center shadow-lg transition-all animate-fadeIn">
-              <h4 className="text-xl sm:text-2xl font-black text-black tracking-wide">
-                BAJA POSIBILIDAD DE SEPSIS
-              </h4>
-              <p className="text-xs font-bold text-slate-900 mt-1">
-                Sumatoria: {sumatoriaPuntos} / 8 puntos (Puntaje &lt; 2)
-              </p>
+            <div className="space-y-3 animate-fadeIn">
+              <div className="w-full bg-[#7ecc61] border-2 border-[#5ba83e] p-5 sm:p-6 rounded-2xl text-center shadow-lg">
+                <h4 className="text-xl sm:text-2xl font-black text-black tracking-wide">
+                  BAJA POSIBILIDAD DE SEPSIS
+                </h4>
+                <p className="text-xs font-bold text-slate-900 mt-1">
+                  Sumatoria: {sumatoriaPuntos} / 8 puntos (Puntaje &lt; 2) · Meta 1 Hora
+                </p>
+              </div>
+
+              {/* Flecha y Cuadro Guía Verde (MAMUTTS) */}
+              <div className="flex flex-col items-center">
+                <div className="w-0.5 h-5 bg-[#0b4d6c]"></div>
+                <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-[#0b4d6c]"></div>
+              </div>
+              <div className="max-w-md mx-auto w-full bg-white border-4 border-[#55b726] rounded-3xl p-5 text-center shadow-md">
+                <p className="text-base sm:text-lg font-black text-slate-900 leading-snug">
+                  Algoritmo de neutropenia febril <br />
+                  <span className="text-xl tracking-wide text-[#2d6d10]">MAMUTTS</span>
+                </p>
+              </div>
             </div>
           )}
 
-          {/* CATEGORÍA 2: 2 O 3 PUNTOS -> BOTÓN AMARILLO (IMAGEN 3) */}
+          {/* CATEGORÍA 2: 2 O 3 PUNTOS -> BOTÓN AMARILLO + RECUADRO ACCIONES AMARILLO */}
           {(sumatoriaPuntos === 2 || sumatoriaPuntos === 3) && (
-            <div className="w-full bg-[#f4b400] border-2 border-[#d99b00] p-5 sm:p-6 rounded-2xl text-center shadow-lg transition-all animate-fadeIn">
-              <h4 className="text-xl sm:text-2xl font-black text-black tracking-wide">
-                ALERTA DE SEPSIS (SIN DOMᵃ)
-              </h4>
-              <p className="text-xs font-bold text-slate-950 mt-1">
-                Sumatoria: {sumatoriaPuntos} / 8 puntos (Puntaje 2 o 3)
-              </p>
+            <div className="space-y-3 animate-fadeIn">
+              <div className="w-full bg-[#f4b400] border-2 border-[#d99b00] p-5 sm:p-6 rounded-2xl text-center shadow-lg">
+                <h4 className="text-xl sm:text-2xl font-black text-black tracking-wide">
+                  ALERTA DE SEPSIS (SIN DOMᵃ)
+                </h4>
+                <p className="text-xs font-bold text-slate-950 mt-1">
+                  Sumatoria: {sumatoriaPuntos} / 8 puntos (Puntaje 2 o 3) · Meta 1 Hora
+                </p>
+              </div>
+
+              {/* Flecha y Cuadro Guía Amarillo */}
+              <div className="flex flex-col items-center">
+                <div className="w-0.5 h-5 bg-[#0b4d6c]"></div>
+                <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-[#0b4d6c]"></div>
+              </div>
+              <div className="max-w-xl mx-auto w-full bg-white border-[3px] border-[#f4b400] rounded-2xl p-5 shadow-md">
+                <ul className="space-y-2 text-sm font-bold text-slate-900">
+                  <li className="flex items-start gap-2">
+                    <span className="text-slate-900 font-black">•</span>
+                    <span>Búsqueda de foco de infección</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-slate-900 font-black">•</span>
+                    <span>Inicio de antibiótico en la primera hora y clasificación riesgo alto o estándar</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-slate-900 font-black">•</span>
+                    <span>Toma de hemocultivos</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-slate-900 font-black">•</span>
+                    <span>Laboratorios DOM en las próximas 2 horas</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           )}
 
-          {/* CATEGORÍA 3: > 3 PUNTOS -> BOTÓN ROSADO TIPO ROJO (IMAGEN 4) */}
+          {/* CATEGORÍA 3: > 3 PUNTOS -> BOTÓN ROSADO TIPO ROJO + ÓRDENES INMEDIATAS + CRITERIOS UCIP */}
           {sumatoriaPuntos > 3 && (
-            <div className="w-full bg-[#ff9999] border-2 border-[#e65c5c] p-5 sm:p-6 rounded-2xl text-center shadow-lg transition-all animate-fadeIn">
-              <h4 className="text-xl sm:text-2xl font-black text-black tracking-wide">
-                ALERTA CHOQUE SEPTICOᵇ O DOMᵃ
-              </h4>
-              <p className="text-xs font-bold text-slate-950 mt-1">
-                Sumatoria: {sumatoriaPuntos} / 8 puntos (Puntaje &gt; 3)
-              </p>
+            <div className="space-y-3 animate-fadeIn">
+              <div className="w-full bg-[#ff9999] border-2 border-[#e65c5c] p-5 sm:p-6 rounded-2xl text-center shadow-lg">
+                <h4 className="text-xl sm:text-2xl font-black text-black tracking-wide">
+                  ALERTA CHOQUE SEPTICOᵇ O DOMᵃ
+                </h4>
+                <p className="text-xs font-black text-red-950 mt-1">
+                  Sumatoria: {sumatoriaPuntos} / 8 puntos (Puntaje &gt; 3) · ⏱ META MÁXIMA: 45 MINUTOS
+                </p>
+              </div>
+
+              <div className="flex flex-col items-center">
+                <div className="w-0.5 h-5 bg-[#0b4d6c]"></div>
+                <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-[#0b4d6c]"></div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+                {/* Cuadro naranja de medidas inmediatas */}
+                <div className="bg-white border-[3px] border-[#e66c1a] rounded-2xl p-5 shadow-md flex flex-col justify-center">
+                  <ul className="space-y-2 text-sm font-bold text-slate-900">
+                    <li className="flex items-start gap-2">
+                      <span className="font-black">•</span>
+                      <span>Oxígeno FiO2 100%</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-black">•</span>
+                      <span>Líquidos intravenosos: Bolo 10 cc/kg</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-black">•</span>
+                      <span>
+                        Inicio antibiótico <strong className="text-red-700 font-black">MÁXIMO</strong> en 45 minutos
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-black">•</span>
+                      <span>Toma de hemocultivos de inmediato</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-black">•</span>
+                      <span>Laboratorios DOMᵃ</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Cuadro rojo Criterios UCIP*** + CONSIDERE */}
+                <div className="bg-white border-[3px] border-[#cc0000] rounded-2xl p-5 shadow-md relative overflow-hidden">
+                  <div className="text-center space-y-1 border-b border-red-200 pb-3 mb-3">
+                    <h5 className="text-sm sm:text-base font-black text-slate-950">
+                      Criterios UCIP***
+                    </h5>
+                    <div className="text-xs sm:text-sm font-bold text-slate-800 space-y-0.5">
+                      <div>Alteración sensorio</div>
+                      <div>Hipotensión o mala perfusión</div>
+                      <div>Disfunción cardiaca</div>
+                      <div>Sobrecarga de volumen</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 pr-8">
+                    <h6 className="text-center text-xs sm:text-sm font-black text-slate-950 uppercase tracking-wide">
+                      CONSIDERE
+                    </h6>
+                    <ul className="space-y-1 text-xs sm:text-sm font-bold text-slate-900">
+                      <li className="flex items-start gap-1.5">
+                        <span>•</span>
+                        <span>Máximo 2 bolos de líquidos</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span>•</span>
+                        <span>Vasoactivos TEMPRANO por vena periférica</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span>•</span>
+                        <span>Intubación</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span>•</span>
+                        <span>Uso de aguja intraósea</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="absolute bottom-3 right-3 text-red-600">
+                    <AlertTriangle className="w-8 h-8 fill-red-600 text-white" />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

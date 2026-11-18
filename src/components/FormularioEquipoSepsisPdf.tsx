@@ -1,5 +1,6 @@
 import React from "react";
 import { FormularioEquipoSepsis } from "../types";
+import { FormattedTimeInput } from "./FormattedTimeInput";
 import { AlertCircle, Clock, ShieldCheck, Check } from "lucide-react";
 
 interface FormularioEquipoSepsisPdfProps {
@@ -43,38 +44,9 @@ export const FormularioEquipoSepsisPdf: React.FC<FormularioEquipoSepsisPdfProps>
     });
   };
 
-  const updateParaclinico = (
-    key:
-      | "hemograma"
-      | "tpInr"
-      | "fibrinogenoDimeroD"
-      | "pcr"
-      | "astAlt"
-      | "bilirrubina"
-      | "creatinina"
-      | "electrolitos"
-      | "aislamientosPrevios",
-    field: "checked" | "fechaHora" | "valor",
-    val: any
-  ) => {
-    if (soloLectura || !onChange) return;
-    const current = data.paraclinicos?.[key] || {};
-    onChange({
-      ...data,
-      paraclinicos: {
-        ...data.paraclinicos,
-        [key]: {
-          ...current,
-          [field]: val,
-        },
-      },
-    });
-  };
-
   const signos = data.signosVitales || {};
   const evat = data.evat || {};
   const examen = data.examenFisico || {};
-  const paraclinicos = data.paraclinicos || {};
 
   return (
     <div className="bg-white border-2 border-[#007b8f] rounded-2xl shadow-xl overflow-hidden text-slate-900 font-sans text-xs select-text">
@@ -912,389 +884,29 @@ export const FormularioEquipoSepsisPdf: React.FC<FormularioEquipoSepsisPdfProps>
         </div>
       </div>
 
-      {/* 7. SECCIÓN D: PARACLÍNICOS DE LAS ÚLTIMAS 6 HORAS (DOM) */}
-      <div className="p-4 border-b border-slate-300 bg-white space-y-2">
-        <h3 className="font-black text-xs uppercase text-[#074c5d] tracking-wider mb-2 flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-[#007b8f]"></span>
-          D. PARACLÍNICOS DE LAS ÚLTIMAS 6 HORAS (evaluación disfunción orgánica múltiple - DOM)
-        </h3>
-
-        <div className="border border-[#007b8f] rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr className="bg-[#0b4d6c] text-white font-black text-center divide-x divide-white/20">
-                <th className="p-2 w-28 text-left pl-3">Sistema</th>
-                <th className="p-2 text-left pl-3">Parámetros</th>
-                <th className="p-2 w-32 sm:w-36">Fecha/Hora</th>
-                <th className="p-2 w-28 sm:w-36">Valor</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#007b8f]/30">
-              {/* HEMATOLÓGICO */}
-              <tr className="bg-white">
-                <td rowSpan={4} className="p-2.5 font-black text-[#074c5d] bg-[#f0f9fa] border-r border-[#007b8f]/30 align-top">
-                  Hematológico
-                </td>
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.hemograma?.checked)}
-                      onChange={(e) => updateParaclinico("hemograma", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">
-                      Hemograma (Hemoglobina, plaquetas, neutrófilos, linfocitos)
-                    </span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.hemograma?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("hemograma", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.hemograma?.valor || ""}
-                    onChange={(e) => updateParaclinico("hemograma", "valor", e.target.value)}
-                    placeholder="Hb, Plaq, RAN"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-              <tr className="bg-white">
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.tpInr?.checked)}
-                      onChange={(e) => updateParaclinico("tpInr", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">TP/INR</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.tpInr?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("tpInr", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.tpInr?.valor || ""}
-                    onChange={(e) => updateParaclinico("tpInr", "valor", e.target.value)}
-                    placeholder="seg / INR"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-              <tr className="bg-white">
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.fibrinogenoDimeroD?.checked)}
-                      onChange={(e) => updateParaclinico("fibrinogenoDimeroD", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">Fibrinógeno/Dímero D</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.fibrinogenoDimeroD?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("fibrinogenoDimeroD", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.fibrinogenoDimeroD?.valor || ""}
-                    onChange={(e) => updateParaclinico("fibrinogenoDimeroD", "valor", e.target.value)}
-                    placeholder="mg/dL"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-              <tr className="bg-white">
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.pcr?.checked)}
-                      onChange={(e) => updateParaclinico("pcr", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">Proteína C Reactiva</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.pcr?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("pcr", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.pcr?.valor || ""}
-                    onChange={(e) => updateParaclinico("pcr", "valor", e.target.value)}
-                    placeholder="mg/L"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-
-              {/* HEPÁTICO */}
-              <tr className="bg-[#fbfdfd]">
-                <td rowSpan={2} className="p-2.5 font-black text-[#074c5d] bg-[#f0f9fa] border-r border-[#007b8f]/30 align-top">
-                  Hepático
-                </td>
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.astAlt?.checked)}
-                      onChange={(e) => updateParaclinico("astAlt", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">AST/ALT</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.astAlt?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("astAlt", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.astAlt?.valor || ""}
-                    onChange={(e) => updateParaclinico("astAlt", "valor", e.target.value)}
-                    placeholder="U/L"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-              <tr className="bg-[#fbfdfd]">
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.bilirrubina?.checked)}
-                      onChange={(e) => updateParaclinico("bilirrubina", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">Bilirrubina total /directa</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.bilirrubina?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("bilirrubina", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.bilirrubina?.valor || ""}
-                    onChange={(e) => updateParaclinico("bilirrubina", "valor", e.target.value)}
-                    placeholder="mg/dL"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-
-              {/* RENAL */}
-              <tr className="bg-white">
-                <td rowSpan={2} className="p-2.5 font-black text-[#074c5d] bg-[#f0f9fa] border-r border-[#007b8f]/30 align-top">
-                  Renal
-                </td>
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.creatinina?.checked)}
-                      onChange={(e) => updateParaclinico("creatinina", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">Creatinina</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.creatinina?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("creatinina", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.creatinina?.valor || ""}
-                    onChange={(e) => updateParaclinico("creatinina", "valor", e.target.value)}
-                    placeholder="mg/dL"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-              <tr className="bg-white">
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.electrolitos?.checked)}
-                      onChange={(e) => updateParaclinico("electrolitos", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">
-                      Electrolitos (calcio, sodio, potasio, magnesio, cloro)
-                    </span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.electrolitos?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("electrolitos", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.electrolitos?.valor || ""}
-                    onChange={(e) => updateParaclinico("electrolitos", "valor", e.target.value)}
-                    placeholder="mEq/L"
-                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-
-              {/* MICROBIOLÓGICO */}
-              <tr className="bg-[#fbfdfd]">
-                <td className="p-2.5 font-black text-[#074c5d] bg-[#f0f9fa] border-r border-[#007b8f]/30">
-                  Microbiológico
-                </td>
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(paraclinicos.aislamientosPrevios?.checked)}
-                      onChange={(e) => updateParaclinico("aislamientosPrevios", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">Aislamientos previos</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.aislamientosPrevios?.fechaHora || ""}
-                    onChange={(e) => updateParaclinico("aislamientosPrevios", "fechaHora", e.target.value)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-0.5 text-center rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={paraclinicos.aislamientosPrevios?.valor || ""}
-                    onChange={(e) => updateParaclinico("aislamientosPrevios", "valor", e.target.value)}
-                    placeholder="ej. Germen / Sensibilidad"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-0.5 font-bold rounded"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* RECUADRO NARANJA DE ADVERTENCIA DEL PROTOCOLO */}
-        <div className="bg-[#fff6e6] border-2 border-[#f5b041] p-3 rounded-xl text-xs font-semibold text-[#8a4b08] leading-relaxed shadow-sm flex items-start gap-2.5 mt-3">
-          <AlertCircle className="w-5 h-5 text-[#d97706] shrink-0 mt-0.5" />
-          <p>
-            <strong>En caso de no tener paraclínicos recientes (últimas 6 horas)</strong>, solicitarlos para descartar DOM y adicionar <strong>lactato, glucometría</strong> y clasificar el sistema respiratorio con la <strong>SaFiO2 o PaFiO2</strong> del paciente.
-          </p>
-        </div>
-      </div>
-
-      {/* 8. HORAS Y FIRMAS */}
+      {/* 7. HORAS Y FIRMAS */}
       <div className="p-4 bg-[#fbfdfd] border-b border-slate-300">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200">
             <span className="font-bold text-slate-700 shrink-0">Hora inicio:</span>
-            <input
-              type="text"
+            <FormattedTimeInput
+              mode="time"
               disabled={soloLectura}
               value={data.horaInicio || ""}
-              onChange={(e) => update({ horaInicio: e.target.value })}
-              placeholder="08:30"
+              onValueChange={(val) => update({ horaInicio: val })}
+              placeholder="hh:mm"
               className="w-full font-mono font-bold text-center bg-[#f0f9fa] border border-[#9fd5de] py-0.5 rounded outline-none"
             />
           </div>
 
           <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200">
             <span className="font-bold text-slate-700 shrink-0">Hora clasificación:</span>
-            <input
-              type="text"
+            <FormattedTimeInput
+              mode="time"
               disabled={soloLectura}
               value={data.horaClasificacion || ""}
-              onChange={(e) => update({ horaClasificacion: e.target.value })}
-              placeholder="08:38"
+              onValueChange={(val) => update({ horaClasificacion: val })}
+              placeholder="hh:mm"
               className="w-full font-mono font-bold text-center bg-[#f0f9fa] border border-[#9fd5de] py-0.5 rounded outline-none"
             />
           </div>

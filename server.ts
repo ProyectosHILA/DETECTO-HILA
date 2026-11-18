@@ -55,6 +55,34 @@ export interface PacienteRegistro {
   timestampFinalizado?: number;
   // Formulario digitalizado Lista de Chequeo 1 (PDF)
   formularioEquipoSepsis?: any;
+  categoriaTriageValidada?: 1 | 2 | 3;
+  categoriaTriageValidadaLabel?: string;
+  motivoCambioCategoria?: string;
+  reportadoADetecto?: boolean;
+  habilitadoCierreAnticipado?: boolean;
+  motivoCierreAnticipado?: string;
+  estadosModulos?: {
+    fase1Validada: boolean;
+    checklist1Completado: boolean;
+    laboratoriosCompletado: boolean;
+    anexoCompletado: boolean;
+  };
+  tiemposSubmodulos?: {
+    timestampValidacionTriage?: number;
+    validacionTriageSegundos?: number;
+    timestampChecklist1?: number;
+    checklist1Segundos?: number;
+    timestampLaboratorios?: number;
+    laboratoriosSegundos?: number;
+    laboratoriosCompletadoPor?: "fase2" | "fase3" | "laboratorios";
+    timestampAnexo?: number;
+    anexoSegundos?: number;
+    anexoTipo?: string;
+  };
+  laboratorios?: any;
+  anexo2Data?: any;
+  anexo3Data?: any;
+  anexo4Data?: any;
 
   // Papelera
   enPapelera?: boolean;
@@ -116,10 +144,26 @@ async function startServer() {
   app.get("/api/alertas", (_req: Request, res: Response) => {
     const list = readDB();
     const pendientesUrgencias = list.filter(
-      (p) => !p.enPapelera && p.estado === "pendiente_urgencias"
+      (p) =>
+        !p.enPapelera &&
+        !p.fase3Completada &&
+        p.estado !== "completado" &&
+        p.estado !== "descartado"
     );
     const pendientesDetecto = list.filter(
-      (p) => !p.enPapelera && p.estado === "pendiente_detecto"
+      (p) =>
+        !p.enPapelera &&
+        !p.fase3Completada &&
+        (p.estado === "pendiente_detecto" || p.reportadoADetecto)
+    );
+    const pendientesLaboratorios = list.filter(
+      (p) =>
+        !p.enPapelera &&
+        !p.fase3Completada &&
+        p.estado !== "completado" &&
+        p.estado !== "descartado" &&
+        p.estadosModulos?.fase1Validada === true &&
+        !p.estadosModulos?.laboratoriosCompletado
     );
 
     res.json({
@@ -127,10 +171,10 @@ async function startServer() {
         cantidad: pendientesUrgencias.length,
         items: pendientesUrgencias.map((p) => ({
           id: p.id,
-          nombre: p.identificacionPaciente ? `ID: ${p.identificacionPaciente}` : `${p.nombre || ''} ${p.apellido || ''}`.trim() || 'Paciente',
-          identificacionPaciente: p.identificacionPaciente || '',
-          categoriaTriage: p.categoriaTriage,
-          categoriaTriageLabel: p.categoriaTriageLabel,
+          nombre: p.nombre ? `${p.nombre} (ID: ${p.identificacionPaciente})` : p.identificacionPaciente ? `ID: ${p.identificacionPaciente}` : "Paciente",
+          identificacionPaciente: p.identificacionPaciente || "",
+          categoriaTriage: p.categoriaTriageValidada || p.categoriaTriage,
+          categoriaTriageLabel: p.categoriaTriageValidadaLabel || p.categoriaTriageLabel,
           puntajeTamizaje: p.puntajeTamizaje,
           esperandoDesde: p.timestampPasoFase2 || p.timestampInicio,
           diagnosticoTriage: p.diagnosticoTriage,
@@ -140,13 +184,24 @@ async function startServer() {
         cantidad: pendientesDetecto.length,
         items: pendientesDetecto.map((p) => ({
           id: p.id,
-          nombre: p.identificacionPaciente ? `ID: ${p.identificacionPaciente}` : `${p.nombre || ''} ${p.apellido || ''}`.trim() || 'Paciente',
-          identificacionPaciente: p.identificacionPaciente || '',
-          categoriaTriage: p.categoriaTriage,
-          categoriaTriageLabel: p.categoriaTriageLabel,
+          nombre: p.nombre ? `${p.nombre} (ID: ${p.identificacionPaciente})` : p.identificacionPaciente ? `ID: ${p.identificacionPaciente}` : "Paciente",
+          identificacionPaciente: p.identificacionPaciente || "",
+          categoriaTriage: p.categoriaTriageValidada || p.categoriaTriage,
+          categoriaTriageLabel: p.categoriaTriageValidadaLabel || p.categoriaTriageLabel,
           puntajeTamizaje: p.puntajeTamizaje,
           esperandoDesde: p.timestampPasoFase3 || p.timestampInicio,
           diagnosticoUrgencias: p.diagnosticoUrgencias,
+        })),
+      },
+      laboratorios: {
+        cantidad: pendientesLaboratorios.length,
+        items: pendientesLaboratorios.map((p) => ({
+          id: p.id,
+          nombre: p.nombre ? `${p.nombre} (ID: ${p.identificacionPaciente})` : p.identificacionPaciente ? `ID: ${p.identificacionPaciente}` : "Paciente",
+          identificacionPaciente: p.identificacionPaciente || "",
+          categoriaTriage: p.categoriaTriageValidada || p.categoriaTriage,
+          categoriaTriageLabel: p.categoriaTriageValidadaLabel || p.categoriaTriageLabel,
+          esperandoDesde: p.tiemposSubmodulos?.timestampValidacionTriage || p.timestampPasoFase2 || p.timestampInicio,
         })),
       },
     });
@@ -191,6 +246,23 @@ async function startServer() {
       aprobadoUrgencias: req.body.aprobadoUrgencias,
       motivoDescarte: req.body.motivoDescarte,
       formularioEquipoSepsis: req.body.formularioEquipoSepsis,
+      categoriaTriageValidada: req.body.categoriaTriageValidada,
+      categoriaTriageValidadaLabel: req.body.categoriaTriageValidadaLabel,
+      motivoCambioCategoria: req.body.motivoCambioCategoria,
+      reportadoADetecto: Boolean(req.body.reportadoADetecto),
+      habilitadoCierreAnticipado: Boolean(req.body.habilitadoCierreAnticipado),
+      motivoCierreAnticipado: req.body.motivoCierreAnticipado,
+      estadosModulos: req.body.estadosModulos || {
+        fase1Validada: false,
+        checklist1Completado: false,
+        laboratoriosCompletado: false,
+        anexoCompletado: false,
+      },
+      tiemposSubmodulos: req.body.tiemposSubmodulos || {},
+      laboratorios: req.body.laboratorios || {},
+      anexo2Data: req.body.anexo2Data || {},
+      anexo3Data: req.body.anexo3Data || {},
+      anexo4Data: req.body.anexo4Data || {},
     };
 
     list.unshift(nuevo);
@@ -207,9 +279,28 @@ async function startServer() {
     }
 
     const current = list[idx];
+    const mergedEstados = req.body.estadosModulos
+      ? {
+          fase1Validada: Boolean(current.estadosModulos?.fase1Validada),
+          checklist1Completado: Boolean(current.estadosModulos?.checklist1Completado),
+          laboratoriosCompletado: Boolean(current.estadosModulos?.laboratoriosCompletado),
+          anexoCompletado: Boolean(current.estadosModulos?.anexoCompletado),
+          ...req.body.estadosModulos,
+        }
+      : current.estadosModulos;
+
+    const mergedTiemposSub = req.body.tiemposSubmodulos
+      ? {
+          ...(current.tiemposSubmodulos || {}),
+          ...req.body.tiemposSubmodulos,
+        }
+      : current.tiemposSubmodulos;
+
     const updated: PacienteRegistro = {
       ...current,
       ...req.body,
+      estadosModulos: mergedEstados,
+      tiemposSubmodulos: mergedTiemposSub,
       id: current.id, // Immutable ID
     };
 

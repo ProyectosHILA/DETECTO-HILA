@@ -40,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {usuarioActual.rol === "triage" && "Fase 1: Triage"}
                 {usuarioActual.rol === "medico_urgencias" && "Fase 2: Equipo de Sepsis"}
                 {usuarioActual.rol === "grupo_detecto" && "Fase 3: Equipo DETECTO"}
+                {usuarioActual.rol === "laboratorio" && "Módulo de Laboratorios"}
                 {usuarioActual.rol === "super_usuario" && "Super Usuario"}
               </span>
             </div>
