@@ -1,0 +1,165 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 3 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOptString(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isOptBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    function isOptNumber(data, field) {
+      return !(field in data) || (data[field] is int || data[field] is float);
+    }
+
+    function isOptMap(data, field) {
+      return !(field in data) || data[field] is map;
+    }
+
+    function isValidPaciente(data, pacienteId) {
+      let requiredKeys = [
+        'id', 'codigo', 'identificacionPaciente', 'fechaCreacion',
+        'faseActual', 'estado', 'fase1Completada', 'fase2Completada', 'fase3Completada',
+        'criteriosTamizaje', 'puntajeTamizaje', 'categoriaTriage', 'categoriaTriageLabel',
+        'diagnosticoTriage', 'tiempoFase1Segundos', 'tiempoFase2Segundos',
+        'tiempoFase3Segundos', 'tiempoTotalSegundos', 'timestampInicio'
+      ];
+      let allowedKeys = [
+        'id', 'codigo', 'identificacionPaciente', 'nombre', 'apellido', 'fechaCreacion',
+        'faseActual', 'estado', 'fase1Completada', 'fase2Completada', 'fase3Completada',
+        'criteriosTamizaje', 'puntajeTamizaje', 'categoriaTriage', 'categoriaTriageLabel',
+        'diagnosticoTriage', 'autorTriage', 'diagnosticoUrgencias', 'aplicaSepsis',
+        'aprobadoUrgencias', 'motivoDescarte', 'autorUrgencias', 'diagnosticoDetecto',
+        'autorDetecto', 'tiempoFase1Segundos', 'tiempoFase2Segundos',
+        'tiempoFase3Segundos', 'tiempoTotalSegundos', 'timestampInicio',
+        'timestampPasoFase2', 'timestampPasoFase3', 'timestampFinalizado',
+        'categoriaTriageValidada', 'categoriaTriageValidadaLabel', 'motivoCambioCategoria',
+        'reportadoADetecto', 'habilitadoCierreAnticipado', 'motivoCierreAnticipado',
+        'estadosModulos', 'tiemposSubmodulos', 'formularioEquipoSepsis',
+        'laboratorios', 'anexo2Data', 'anexo3Data', 'anexo4Data',
+        'enPapelera', 'fechaEliminacion'
+      ];
+
+      return data.keys().hasAll(requiredKeys) &&
+        data.keys().hasOnly(allowedKeys) &&
+        isValidId(data.id) &&
+        data.id == pacienteId &&
+        data.codigo is string && data.codigo.size() >= 4 && data.codigo.size() <= 64 &&
+        data.identificacionPaciente is string && data.identificacionPaciente.size() <= 128 &&
+        (data.fechaCreacion is int || data.fechaCreacion is float) &&
+        data.faseActual in [1, 2, 3, 4] &&
+        data.estado in ['en_triage', 'pendiente_urgencias', 'pendiente_detecto', 'completado', 'descartado'] &&
+        data.fase1Completada is bool &&
+        data.fase2Completada is bool &&
+        data.fase3Completada is bool &&
+        data.criteriosTamizaje is list && data.criteriosTamizaje.size() == 8 && data.criteriosTamizaje[0] is bool &&
+        (data.puntajeTamizaje is int || data.puntajeTamizaje is float) &&
+        data.puntajeTamizaje >= 0 && data.puntajeTamizaje <= 8 &&
+        data.categoriaTriage in [1, 2, 3] &&
+        data.categoriaTriageLabel is string && data.categoriaTriageLabel.size() <= 200 &&
+        data.diagnosticoTriage is string && data.diagnosticoTriage.size() <= 4000 &&
+        (data.tiempoFase1Segundos is int || data.tiempoFase1Segundos is float) && data.tiempoFase1Segundos >= 0 &&
+        (data.tiempoFase2Segundos is int || data.tiempoFase2Segundos is float) && data.tiempoFase2Segundos >= 0 &&
+        (data.tiempoFase3Segundos is int || data.tiempoFase3Segundos is float) && data.tiempoFase3Segundos >= 0 &&
+        (data.tiempoTotalSegundos is int || data.tiempoTotalSegundos is float) && data.tiempoTotalSegundos >= 0 &&
+        (data.timestampInicio is int || data.timestampInicio is float) &&
+        isOptString(data, 'nombre', 200) &&
+        isOptString(data, 'apellido', 200) &&
+        isOptString(data, 'autorTriage', 200) &&
+        isOptString(data, 'diagnosticoUrgencias', 4000) &&
+        isOptBool(data, 'aplicaSepsis') &&
+        isOptBool(data, 'aprobadoUrgencias') &&
+        isOptString(data, 'motivoDescarte', 2000) &&
+        isOptString(data, 'autorUrgencias', 200) &&
+        isOptString(data, 'diagnosticoDetecto', 4000) &&
+        isOptString(data, 'autorDetecto', 200) &&
+        isOptNumber(data, 'timestampPasoFase2') &&
+        isOptNumber(data, 'timestampPasoFase3') &&
+        isOptNumber(data, 'timestampFinalizado') &&
+        (!('categoriaTriageValidada' in data) || data.categoriaTriageValidada in [1, 2, 3]) &&
+        isOptString(data, 'categoriaTriageValidadaLabel', 200) &&
+        isOptString(data, 'motivoCambioCategoria', 2000) &&
+        isOptBool(data, 'reportadoADetecto') &&
+        isOptBool(data, 'habilitadoCierreAnticipado') &&
+        isOptString(data, 'motivoCierreAnticipado', 2000) &&
+        isOptMap(data, 'estadosModulos') &&
+        isOptMap(data, 'tiemposSubmodulos') &&
+        isOptMap(data, 'formularioEquipoSepsis') &&
+        isOptMap(data, 'laboratorios') &&
+        isOptMap(data, 'anexo2Data') &&
+        isOptMap(data, 'anexo3Data') &&
+        isOptMap(data, 'anexo4Data') &&
+        isOptBool(data, 'enPapelera') &&
+        isOptNumber(data, 'fechaEliminacion');
+    }
+
+    match /pacientes/{pacienteId} {
+      allow get: if isValidId(pacienteId);
+      allow list: if resource.data.codigo is string &&
+        resource.data.estado in ['en_triage', 'pendiente_urgencias', 'pendiente_detecto', 'completado', 'descartado'];
+
+      allow create: if isValidId(pacienteId) && isValidPaciente(incoming(), pacienteId);
+
+      allow update: if isValidId(pacienteId) &&
+        isValidPaciente(incoming(), pacienteId) &&
+        incoming().id == existing().id &&
+        incoming().codigo == existing().codigo &&
+        incoming().fechaCreacion == existing().fechaCreacion &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'identificacionPaciente', 'nombre', 'apellido',
+          'faseActual', 'estado', 'fase1Completada', 'fase2Completada', 'fase3Completada',
+          'criteriosTamizaje', 'puntajeTamizaje', 'categoriaTriage', 'categoriaTriageLabel',
+          'diagnosticoTriage', 'autorTriage', 'diagnosticoUrgencias', 'aplicaSepsis',
+          'aprobadoUrgencias', 'motivoDescarte', 'autorUrgencias', 'diagnosticoDetecto',
+          'autorDetecto', 'tiempoFase1Segundos', 'tiempoFase2Segundos',
+          'tiempoFase3Segundos', 'tiempoTotalSegundos', 'timestampInicio',
+          'timestampPasoFase2', 'timestampPasoFase3', 'timestampFinalizado',
+          'categoriaTriageValidada', 'categoriaTriageValidadaLabel', 'motivoCambioCategoria',
+          'reportadoADetecto', 'habilitadoCierreAnticipado', 'motivoCierreAnticipado',
+          'estadosModulos', 'tiemposSubmodulos', 'formularioEquipoSepsis',
+          'laboratorios', 'anexo2Data', 'anexo3Data', 'anexo4Data',
+          'enPapelera', 'fechaEliminacion'
+        ]);
+
+      allow delete: if isValidId(pacienteId) && existing().enPapelera == true;
+    }
+
+    match /counters/{counterId} {
+      allow get: if counterId == 'pacientes_seq';
+      allow create: if counterId == 'pacientes_seq' &&
+        incoming().keys().hasAll(['lastSeq']) &&
+        incoming().keys().hasOnly(['lastSeq']) &&
+        incoming().lastSeq is int &&
+        incoming().lastSeq >= 1 &&
+        incoming().lastSeq <= 999999;
+      allow update: if counterId == 'pacientes_seq' &&
+        incoming().keys().hasAll(['lastSeq']) &&
+        incoming().keys().hasOnly(['lastSeq']) &&
+        incoming().lastSeq is int &&
+        incoming().lastSeq >= existing().lastSeq &&
+        incoming().lastSeq <= 999999;
+    }
+
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+    }
+  }
+}

@@ -11,7 +11,28 @@ import {
   CheckCircle2,
   Inbox,
   Timer,
+  FileUp,
+  FileCheck2,
+  Loader2,
+  ShieldCheck,
+  XCircle,
 } from "lucide-react";
+
+interface AuditoriaExtraccion {
+  fileName: string;
+  pacienteDocumento: {
+    nombreDetectado: string;
+    identificacionDetectada: string;
+    fechaReporte: string;
+  };
+  camposEncontrados: Array<{
+    campo: string;
+    valor: string;
+    fechaHora: string;
+    evidencia: string;
+  }>;
+  camposVacios: string[];
+}
 
 interface ModuloLaboratoriosProps {
   pacientesPendientes: PacienteRegistro[];
@@ -33,6 +54,12 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [ahora, setAhora] = useState<number>(Date.now());
   const [guardando, setGuardando] = useState<boolean>(false);
+  const [analizandoPdf, setAnalizandoPdf] = useState<boolean>(false);
+  const [errorPdf, setErrorPdf] = useState<string | null>(null);
+  const [auditoriaPdf, setAuditoriaPdf] = useState<AuditoriaExtraccion | null>(null);
+  const [conservarPrevios, setConservarPrevios] = useState<boolean>(false);
+  const [arrastrandoArchivo, setArrastrandoArchivo] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const pacienteSeleccionado =
     pacientesPendientes.find((p) => p.id === selectedId) || null;
@@ -41,7 +68,7 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
     pacienteSeleccionado?.laboratorios || {}
   );
 
-  // Dirty protection so 3-second polling NEVER erases what lab tech is typing
+  // Dirty protection so real-time updates NEVER erase what lab tech is typing
   const prevPacIdRef = useRef<string | null>(null);
   const dirtyRef = useRef<boolean>(false);
   const lastSnapRef = useRef<string>("");
@@ -57,6 +84,8 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
       dirtyRef.current = false;
       lastSnapRef.current = "";
       setLabsData({});
+      setAuditoriaPdf(null);
+      setErrorPdf(null);
       return;
     }
 
@@ -66,6 +95,8 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
       dirtyRef.current = false;
       lastSnapRef.current = snap;
       setLabsData(pacienteSeleccionado.laboratorios || {});
+      setAuditoriaPdf(null);
+      setErrorPdf(null);
       return;
     }
 
@@ -74,6 +105,194 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
       setLabsData(pacienteSeleccionado.laboratorios || {});
     }
   }, [pacienteSeleccionado]);
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        const commaIdx = result.indexOf(",");
+        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+      };
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo seleccionado."));
+      reader.readAsDataURL(file);
+    });
+
+  const procesarDocumentoLaboratorio = async (file: File) => {
+    if (analizandoPdf) return;
+    setErrorPdf(null);
+
+    const ext = file.name.toLowerCase();
+    const mime =
+      file.type ||
+      (ext.endsWith(".pdf")
+        ? "application/pdf"
+        : ext.endsWith(".png")
+        ? "image/png"
+        : ext.endsWith(".webp")
+        ? "image/webp"
+        : ext.endsWith(".jpg") || ext.endsWith(".jpeg")
+        ? "image/jpeg"
+        : "");
+
+    const allowed = new Set([
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ]);
+
+    if (!allowed.has(mime)) {
+      setErrorPdf(
+        "Formato inválido. Por favor adjunte un archivo PDF (.pdf) o imagen clínica (.png, .jpg, .webp)."
+      );
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorPdf("El archivo supera el límite máximo permitido de 15 MB.");
+      return;
+    }
+
+    setAnalizandoPdf(true);
+    try {
+      const fileBase64 = await fileToBase64(file);
+      const response = await fetch("/api/laboratorios/interpretar-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64,
+          mimeType: mime,
+          fileName: file.name,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          payload?.error || "Error interpretando el documento de laboratorio."
+        );
+      }
+
+      const extracted = (payload?.extracted || {}) as LaboratoriosDOMData;
+      const auditoria = payload?.auditoria;
+
+      // Por seguridad clínica: solo se llenan los campos realmente presentes en el documento;
+      // los demás quedan estrictamente vacíos (salvo que el usuario marque conservar previos).
+      const nextData: LaboratoriosDOMData = conservarPrevios ? { ...labsData } : {};
+
+      const simpleKeys: Array<
+        | "hemograma"
+        | "tpInr"
+        | "fibrinogeno"
+        | "dimeroD"
+        | "pcr"
+        | "astAlt"
+        | "bilirrubina"
+        | "creatinina"
+        | "electrolitos"
+        | "monitoreoGastoUrinario"
+        | "lactatoSerico"
+        | "glucosa"
+        | "aislamientosPrevios"
+      > = [
+        "hemograma",
+        "tpInr",
+        "fibrinogeno",
+        "dimeroD",
+        "pcr",
+        "astAlt",
+        "bilirrubina",
+        "creatinina",
+        "electrolitos",
+        "monitoreoGastoUrinario",
+        "lactatoSerico",
+        "glucosa",
+        "aislamientosPrevios",
+      ];
+
+      for (const k of simpleKeys) {
+        const entry = extracted[k];
+        if (entry?.checked && entry.valor?.trim()) {
+          nextData[k] = {
+            checked: true,
+            fechaHora: entry.fechaHora || "",
+            valor: entry.valor,
+          };
+        } else if (!conservarPrevios) {
+          nextData[k] = { checked: false, fechaHora: "", valor: "" };
+        }
+      }
+
+      if (
+        extracted.gasesPaFiO2?.checked &&
+        (extracted.gasesPaFiO2.pao2 ||
+          extracted.gasesPaFiO2.fio2 ||
+          extracted.gasesPaFiO2.resultado)
+      ) {
+        nextData.gasesPaFiO2 = { ...extracted.gasesPaFiO2 };
+      } else if (!conservarPrevios) {
+        nextData.gasesPaFiO2 = {
+          checked: false,
+          fechaHora: "",
+          pao2: "",
+          fio2: "",
+          resultado: "",
+        };
+      }
+
+      if (
+        extracted.spFiO2?.checked &&
+        (extracted.spFiO2.spo2 ||
+          extracted.spFiO2.fio2 ||
+          extracted.spFiO2.resultado)
+      ) {
+        nextData.spFiO2 = { ...extracted.spFiO2 };
+      } else if (!conservarPrevios) {
+        nextData.spFiO2 = {
+          checked: false,
+          fechaHora: "",
+          spo2: "",
+          fio2: "",
+          resultado: "",
+        };
+      }
+
+      if (extracted.hemocultivosA3?.tomado && extracted.hemocultivosA3.detalle?.trim()) {
+        nextData.hemocultivosA3 = { ...extracted.hemocultivosA3 };
+      } else if (!conservarPrevios) {
+        nextData.hemocultivosA3 = {
+          tomado: false,
+          fechaHora: "",
+          detalle: "",
+        };
+      }
+
+      dirtyRef.current = true;
+      setLabsData(nextData);
+      setAuditoriaPdf({
+        fileName: file.name,
+        pacienteDocumento: auditoria?.pacienteDocumento || {
+          nombreDetectado: "",
+          identificacionDetectada: "",
+          fechaReporte: "",
+        },
+        camposEncontrados: auditoria?.camposEncontrados || [],
+        camposVacios: auditoria?.camposVacios || [],
+      });
+    } catch (err: any) {
+      setErrorPdf(
+        err?.message ||
+          "No se pudo interpretar el archivo. Verifique que sea legible e inténtelo nuevamente."
+      );
+    } finally {
+      setAnalizandoPdf(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   const formatearTiempo = (totalSeg: number) => {
     const mins = Math.floor(Math.max(0, totalSeg) / 60);
@@ -221,6 +440,172 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* CARGA INTELIGENTE DE PDF / DOCUMENTO DE LABORATORIOS */}
+        <div className="bg-white border-2 border-teal-500 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-teal-100 pb-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-teal-600 text-white rounded-xl shadow shrink-0">
+                <FileUp className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-slate-900">
+                  Subir PDF o Documento de Resultados de Laboratorio
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  La herramienta leerá el documento adjunto y diligenciará automáticamente <strong>solo los valores reales encontrados</strong>; los campos que no estén en el archivo permanecerán vacíos.
+                </p>
+              </div>
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-700 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={conservarPrevios}
+                onChange={(e) => setConservarPrevios(e.target.checked)}
+                className="accent-teal-700"
+              />
+              <span>Conservar campos previos al subir otro PDF</span>
+            </label>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf,image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) procesarDocumentoLaboratorio(file);
+            }}
+          />
+
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setArrastrandoArchivo(true);
+            }}
+            onDragLeave={() => setArrastrandoArchivo(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setArrastrandoArchivo(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) procesarDocumentoLaboratorio(file);
+            }}
+            onClick={() => !analizandoPdf && fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all cursor-pointer ${
+              arrastrandoArchivo
+                ? "border-teal-600 bg-teal-50 scale-[1.01]"
+                : analizandoPdf
+                ? "border-amber-400 bg-amber-50/70 cursor-wait"
+                : "border-teal-300 bg-[#f4fbfc] hover:border-teal-600 hover:bg-teal-50/60"
+            }`}
+          >
+            {analizandoPdf ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-2">
+                <Loader2 className="w-8 h-8 text-teal-700 animate-spin" />
+                <p className="text-sm font-black text-teal-950">
+                  Interpretando documento de laboratorio con alta precisión clínica...
+                </p>
+                <p className="text-xs text-slate-600">
+                  Extrayendo únicamente resultados verificables del anexo adjunto.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 py-1">
+                <div className="p-3 bg-white border border-teal-200 rounded-2xl text-teal-700 shadow-sm">
+                  <FileUp className="w-7 h-7" />
+                </div>
+                <div className="text-center sm:text-left space-y-1">
+                  <p className="text-sm font-black text-slate-900">
+                    Haga clic aquí o arrastre el PDF / imagen del laboratorio
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Formatos soportados: <strong>PDF</strong>, PNG, JPG, WEBP (máx. 15 MB) · Extracción estricta sin datos inventados.
+                  </p>
+                </div>
+                <span className="bg-[#0b4d6c] hover:bg-teal-800 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-sm shrink-0">
+                  Seleccionar Archivo
+                </span>
+              </div>
+            )}
+          </div>
+
+          {errorPdf && (
+            <div className="bg-red-50 border border-red-300 text-red-900 rounded-xl px-4 py-3 text-xs font-bold flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorPdf}</span>
+            </div>
+          )}
+
+          {auditoriaPdf && (
+            <div className="bg-emerald-50/70 border-2 border-emerald-400 rounded-2xl p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200 pb-2">
+                <div className="flex items-center gap-2">
+                  <FileCheck2 className="w-5 h-5 text-emerald-700" />
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black text-emerald-950">
+                      Documento interpretado: {auditoriaPdf.fileName}
+                    </h4>
+                    <span className="text-[11px] text-emerald-800 font-semibold block">
+                      {auditoriaPdf.camposEncontrados.length} campo(s) diligenciado(s) desde el anexo · {auditoriaPdf.camposVacios.length} campo(s) dejado(s) vacío(s)
+                    </span>
+                  </div>
+                </div>
+
+                {(auditoriaPdf.pacienteDocumento.nombreDetectado ||
+                  auditoriaPdf.pacienteDocumento.identificacionDetectada) && (
+                  <div className="bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-800">
+                    <span className="text-emerald-800 uppercase font-black mr-1">
+                      Paciente en PDF:
+                    </span>
+                    {auditoriaPdf.pacienteDocumento.nombreDetectado || "Sin nombre"}{" "}
+                    {auditoriaPdf.pacienteDocumento.identificacionDetectada
+                      ? `· ID: ${auditoriaPdf.pacienteDocumento.identificacionDetectada}`
+                      : ""}
+                  </div>
+                )}
+              </div>
+
+              {auditoriaPdf.camposEncontrados.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {auditoriaPdf.camposEncontrados.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white border border-emerald-200 rounded-xl p-2.5 text-xs space-y-0.5 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-black text-emerald-900">{item.campo}</span>
+                        {item.fechaHora && (
+                          <span className="font-mono text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                            {item.fechaHora}
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-bold text-slate-900">{item.valor}</p>
+                      {item.evidencia && (
+                        <p className="text-[10px] text-slate-500 italic truncate">
+                          Fuente PDF: "{item.evidencia}"
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-xl p-3">
+                  No se encontraron parámetros compatibles con la tabla DOM en este documento. Todos los campos se mantuvieron vacíos.
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-900 pt-1">
+                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  Verifique visualmente los valores extraídos en el formulario inferior antes de presionar <strong>Guardar Resultados de Laboratorio</strong>.
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Exact Same Resultados de Laboratorio Component as Fase 2 */}

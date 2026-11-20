@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "PacienteRegistro": {
+      "title": "PacienteRegistro",
+      "description": "Registro clínico completo de un caso pediátrico con sospecha de sepsis en protocolo DETECTO HILA, compartido en tiempo real entre Triage, Urgencias, Laboratorios y Equipo DETECTO.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 4, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "codigo": { "type": "string", "minLength": 4, "maxLength": 64 },
+        "identificacionPaciente": { "type": "string", "maxLength": 128 },
+        "nombre": { "type": "string", "maxLength": 200 },
+        "apellido": { "type": "string", "maxLength": 200 },
+        "fechaCreacion": { "type": "number" },
+        "faseActual": { "type": "number", "enum": [1, 2, 3, 4] },
+        "estado": {
+          "type": "string",
+          "enum": ["en_triage", "pendiente_urgencias", "pendiente_detecto", "completado", "descartado"]
+        },
+        "fase1Completada": { "type": "boolean" },
+        "fase2Completada": { "type": "boolean" },
+        "fase3Completada": { "type": "boolean" },
+        "criteriosTamizaje": { "type": "array" },
+        "puntajeTamizaje": { "type": "number" },
+        "categoriaTriage": { "type": "number", "enum": [1, 2, 3] },
+        "categoriaTriageLabel": { "type": "string", "maxLength": 200 },
+        "diagnosticoTriage": { "type": "string", "maxLength": 4000 },
+        "autorTriage": { "type": "string", "maxLength": 200 },
+        "diagnosticoUrgencias": { "type": "string", "maxLength": 4000 },
+        "aplicaSepsis": { "type": "boolean" },
+        "aprobadoUrgencias": { "type": "boolean" },
+        "motivoDescarte": { "type": "string", "maxLength": 2000 },
+        "autorUrgencias": { "type": "string", "maxLength": 200 },
+        "diagnosticoDetecto": { "type": "string", "maxLength": 4000 },
+        "autorDetecto": { "type": "string", "maxLength": 200 },
+        "tiempoFase1Segundos": { "type": "number" },
+        "tiempoFase2Segundos": { "type": "number" },
+        "tiempoFase3Segundos": { "type": "number" },
+        "tiempoTotalSegundos": { "type": "number" },
+        "timestampInicio": { "type": "number" },
+        "timestampPasoFase2": { "type": "number" },
+        "timestampPasoFase3": { "type": "number" },
+        "timestampFinalizado": { "type": "number" },
+        "categoriaTriageValidada": { "type": "number", "enum": [1, 2, 3] },
+        "categoriaTriageValidadaLabel": { "type": "string", "maxLength": 200 },
+        "motivoCambioCategoria": { "type": "string", "maxLength": 2000 },
+        "reportadoADetecto": { "type": "boolean" },
+        "habilitadoCierreAnticipado": { "type": "boolean" },
+        "motivoCierreAnticipado": { "type": "string", "maxLength": 2000 },
+        "estadosModulos": { "type": "object" },
+        "tiemposSubmodulos": { "type": "object" },
+        "formularioEquipoSepsis": { "type": "object" },
+        "laboratorios": { "type": "object" },
+        "anexo2Data": { "type": "object" },
+        "anexo3Data": { "type": "object" },
+        "anexo4Data": { "type": "object" },
+        "enPapelera": { "type": "boolean" },
+        "fechaEliminacion": { "type": "number" }
+      },
+      "required": [
+        "id",
+        "codigo",
+        "identificacionPaciente",
+        "fechaCreacion",
+        "faseActual",
+        "estado",
+        "fase1Completada",
+        "fase2Completada",
+        "fase3Completada",
+        "criteriosTamizaje",
+        "puntajeTamizaje",
+        "categoriaTriage",
+        "categoriaTriageLabel",
+        "diagnosticoTriage",
+        "tiempoFase1Segundos",
+        "tiempoFase2Segundos",
+        "tiempoFase3Segundos",
+        "tiempoTotalSegundos",
+        "timestampInicio"
+      ]
+    },
+    "PacientesCounter": {
+      "title": "PacientesCounter",
+      "description": "Secuencia atómica institucional para generar códigos consecutivos HILA-2026-NNN entre dispositivos.",
+      "type": "object",
+      "properties": {
+        "lastSeq": { "type": "number" }
+      },
+      "required": ["lastSeq"]
+    }
+  },
+  "firestore": {
+    "/pacientes/{pacienteId}": {
+      "schema": { "$ref": "#/entities/PacienteRegistro" },
+      "description": "Colección principal de casos de sepsis pediátrica DETECTO HILA compartida en la nube entre todos los dispositivos."
+    },
+    "/counters/{counterId}": {
+      "schema": { "$ref": "#/entities/PacientesCounter" },
+      "description": "Contador secuencial para códigos de caso HILA-2026-NNN."
+    }
+  }
+}

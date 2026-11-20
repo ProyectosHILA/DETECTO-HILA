@@ -41,9 +41,9 @@ interface BaseDatosPacientesProps {
   papelera: (PacienteRegistro & { diasRestantes?: number })[];
   usuarioActual: UsuarioSesion;
   onEditarPaciente: (paciente: PacienteRegistro) => void;
-  onEliminarPaciente: (id: string) => void;
-  onRestaurarPaciente: (id: string) => void;
-  onPurgarPaciente: (id: string) => void;
+  onEliminarPaciente: (id: string) => Promise<void> | void;
+  onRestaurarPaciente: (id: string) => Promise<void> | void;
+  onPurgarPaciente: (id: string) => Promise<void> | void;
   onContinuarFase: (paciente: PacienteRegistro) => void;
   onVolverAlMenu: () => void;
 }
@@ -65,11 +65,54 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
   const [subVista, setSubVista] = useState<"casos" | "tablero">("casos");
   const [pacienteDetalle, setPacienteDetalle] = useState<PacienteRegistro | null>(null);
   const [ahora, setAhora] = useState<number>(Date.now());
+  const [confirmacionBorrar, setConfirmacionBorrar] = useState<{
+    tipo: "papelera" | "purgar";
+    paciente: PacienteRegistro;
+  } | null>(null);
+  const [procesandoBorrado, setProcesandoBorrado] = useState<boolean>(false);
+  const [avisoAccion, setAvisoAccion] = useState<{
+    tipo: "ok" | "error";
+    mensaje: string;
+  } | null>(null);
 
   React.useEffect(() => {
     const timer = setInterval(() => setAhora(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const ejecutarBorradoConfirmado = async () => {
+    if (!confirmacionBorrar || procesandoBorrado) return;
+    setProcesandoBorrado(true);
+    setAvisoAccion(null);
+    try {
+      const { tipo, paciente } = confirmacionBorrar;
+      if (tipo === "papelera") {
+        await onEliminarPaciente(paciente.id);
+        if (pacienteDetalle?.id === paciente.id) setPacienteDetalle(null);
+        setAvisoAccion({
+          tipo: "ok",
+          mensaje: `Registro ${paciente.codigo} movido a la papelera. Puede restaurarlo dentro de los próximos 10 días.`,
+        });
+      } else {
+        await onPurgarPaciente(paciente.id);
+        setAvisoAccion({
+          tipo: "ok",
+          mensaje: `Registro ${paciente.codigo} eliminado definitivamente de la base de datos.`,
+        });
+      }
+      setConfirmacionBorrar(null);
+    } catch (err: any) {
+      setAvisoAccion({
+        tipo: "error",
+        mensaje:
+          err?.message ||
+          "No se pudo completar la eliminación del registro en el servidor.",
+      });
+      setConfirmacionBorrar(null);
+    } finally {
+      setProcesandoBorrado(false);
+    }
+  };
 
   const esSuperUsuario = usuarioActual.rol === "super_usuario";
 
@@ -109,7 +152,10 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
   // Export to Genuine Excel (.xlsx) using xlsx package
   const handleExportarExcel = () => {
     if (!esSuperUsuario) {
-      alert("Solo el Super Usuario (AdminDet1) tiene permisos para descargar reportes en Excel.");
+      setAvisoAccion({
+        tipo: "error",
+        mensaje: "Solo el Super Usuario (AdminDet1) tiene permisos para descargar reportes en Excel.",
+      });
       return;
     }
 
@@ -190,6 +236,25 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
           )}
         </div>
       </div>
+
+      {avisoAccion && (
+        <div
+          className={`rounded-2xl px-4 py-3 text-xs font-bold flex items-center justify-between gap-3 border shadow-sm ${
+            avisoAccion.tipo === "ok"
+              ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+              : "bg-red-50 border-red-300 text-red-900"
+          }`}
+        >
+          <span>{avisoAccion.mensaje}</span>
+          <button
+            type="button"
+            onClick={() => setAvisoAccion(null)}
+            className="text-xs font-black px-2 py-0.5 rounded hover:bg-black/5 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Container Card */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl space-y-6">
@@ -323,12 +388,11 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                             <span>Restaurar</span>
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm(`¿Eliminar definitivamente a ${p.nombre} ${p.apellido}?`)) {
-                                onPurgarPaciente(p.id);
-                              }
-                            }}
-                            className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-sm"
+                            type="button"
+                            onClick={() =>
+                              setConfirmacionBorrar({ tipo: "purgar", paciente: p })
+                            }
+                            className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-sm cursor-pointer"
                             title="Eliminar de forma permanente"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -570,16 +634,11 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `¿Mover a ${p.nombre} ${p.apellido} a la papelera? Podrá restaurarlo o desaparecerá a los 10 días.`
-                                    )
-                                  ) {
-                                    onEliminarPaciente(p.id);
-                                  }
-                                }}
-                                className="p-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors"
+                                type="button"
+                                onClick={() =>
+                                  setConfirmacionBorrar({ tipo: "papelera", paciente: p })
+                                }
+                                className="p-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors cursor-pointer"
                                 title="Borrar registro a papelera (Super Usuario)"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -957,6 +1016,75 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                 className="bg-[#0c2340] hover:bg-sky-950 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer shadow-md"
               >
                 Cerrar Detalle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN PARA BORRAR / PURGAR (SUPER USUARIO) */}
+      {confirmacionBorrar && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-red-300 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-3 rounded-2xl bg-red-100 text-red-700 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-black text-slate-900">
+                  {confirmacionBorrar.tipo === "papelera"
+                    ? "¿Mover registro a la papelera?"
+                    : "¿Eliminar registro definitivamente?"}
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {confirmacionBorrar.tipo === "papelera" ? (
+                    <>
+                      El caso{" "}
+                      <strong className="text-slate-900">
+                        {confirmacionBorrar.paciente.codigo}
+                      </strong>{" "}
+                      ({confirmacionBorrar.paciente.nombre || "Paciente"} · ID:{" "}
+                      {confirmacionBorrar.paciente.identificacionPaciente || "Sin ID"})
+                      se moverá a la papelera de reciclaje y podrá restaurarlo durante los próximos 10 días.
+                    </>
+                  ) : (
+                    <>
+                      Esta acción eliminará permanentemente el caso{" "}
+                      <strong className="text-red-700">
+                        {confirmacionBorrar.paciente.codigo}
+                      </strong>{" "}
+                      ({confirmacionBorrar.paciente.nombre || "Paciente"} · ID:{" "}
+                      {confirmacionBorrar.paciente.identificacionPaciente || "Sin ID"})
+                      de la base de datos y no se podrá deshacer.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={procesandoBorrado}
+                onClick={() => setConfirmacionBorrar(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={procesandoBorrado}
+                onClick={ejecutarBorradoConfirmado}
+                className="px-4 py-2 rounded-xl text-xs font-black text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 inline-flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>
+                  {procesandoBorrado
+                    ? "Eliminando..."
+                    : confirmacionBorrar.tipo === "papelera"
+                    ? "Sí, Mover a Papelera"
+                    : "Sí, Eliminar Definitivamente"}
+                </span>
               </button>
             </div>
           </div>

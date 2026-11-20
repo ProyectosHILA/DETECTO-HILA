@@ -23,21 +23,26 @@ export const FormattedTimeInput: React.FC<FormattedTimeInputProps> = ({
   return (
     <input
       type="text"
+      inputMode="numeric"
       disabled={disabled}
       value={value}
       onChange={(e) => {
-        const formatted = formatter(e.target.value, false);
+        const formatted = formatter(e.target.value, false, value || "");
         onValueChange(formatted);
       }}
       onBlur={(e) => {
-        const formatted = formatter(e.target.value, true);
+        const formatted = formatter(e.target.value, true, value || "");
         if (formatted !== value) {
           onValueChange(formatted);
         }
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
-          const formatted = formatter((e.target as HTMLInputElement).value, true);
+          const formatted = formatter(
+            (e.target as HTMLInputElement).value,
+            true,
+            value || ""
+          );
           if (formatted !== value) {
             onValueChange(formatted);
           }

@@ -15,6 +15,15 @@ import { BaseDatosPacientes } from "./components/BaseDatosPacientes";
 import { ModalEditarPaciente } from "./components/ModalEditarPaciente";
 import { BannerConteoRegresivoCentral } from "./components/BannerConteoRegresivoCentral";
 import { audioAlert } from "./utils/audioAlert";
+import {
+  subscribePacientesRealtime,
+  splitActivosYPapelera,
+  crearPacienteFirestore,
+  actualizarPacienteFirestore,
+  moverAPapeleraFirestore,
+  restaurarPacienteFirestore,
+  purgarPacienteFirestore,
+} from "./services/pacientesFirestore";
 import { CheckCircle2, Volume2, VolumeX } from "lucide-react";
 
 export default function App() {
@@ -51,58 +60,36 @@ export default function App() {
   // Edit Modal State (Super Usuario)
   const [pacienteParaEditar, setPacienteParaEditar] = useState<PacienteRegistro | null>(null);
 
-  // Fetch Database & Alerts from Express backend (Syncs across devices)
-  const fetchDatosServidor = async () => {
-    try {
-      const [resPac, resAlert, resPap] = await Promise.all([
-        fetch("/api/pacientes"),
-        fetch("/api/alertas"),
-        fetch("/api/papelera"),
-      ]);
-
-      let hayCasosActivos = false;
-
-      if (resPac.ok) {
-        const dataPac: PacienteRegistro[] = await resPac.json();
-        setPacientes(dataPac);
-        hayCasosActivos = dataPac.some(
-          (p) => !p.fase3Completada && p.estado !== "completado" && p.estado !== "descartado"
-        );
-      }
-
-      if (resAlert.ok) {
-        const dataAlert = await resAlert.json();
-
-        // SONIDO CONSTANTE EN TODOS LOS PERFILES MIENTRAS HAYA CASOS SIN CERRAR:
-        if (hayCasosActivos || dataAlert.urgencias.cantidad > 0) {
-          if (!alarmaSilenciadaRef.current) {
-            audioAlert.startLoopSonidoTriage();
-          }
-        } else {
-          audioAlert.stopLoopSonidoTriage();
-        }
-
-        // RINGTONE CHECK: Si un nuevo paciente llegó a Fase 3, sonar ringtone
-        if (dataAlert.detecto.cantidad > prevPendientesDetectoRef.current) {
-          audioAlert.playRingtoneFase3();
-        }
-        prevPendientesDetectoRef.current = dataAlert.detecto.cantidad;
-        setAlertas(dataAlert);
-      }
-
-      if (resPap.ok) {
-        const dataPap = await resPap.json();
-        setPapelera(dataPap);
-      }
-    } catch (err) {
-      console.warn("Syncing from API:", err);
-    }
-  };
-
+  // Real-time Cloud Firestore Sync across ALL devices & networks
   useEffect(() => {
-    fetchDatosServidor();
-    const interval = setInterval(fetchDatosServidor, 3000);
-    return () => clearInterval(interval);
+    const unsubscribe = subscribePacientesRealtime((allDocs) => {
+      const { activos, papelera: papList, alertas: newAlertas } = splitActivosYPapelera(allDocs);
+
+      setPacientes(activos);
+      setPapelera(papList);
+
+      const hayCasosActivos = activos.some(
+        (p) => !p.fase3Completada && p.estado !== "completado" && p.estado !== "descartado"
+      );
+
+      // SONIDO CONSTANTE EN TODOS LOS PERFILES MIENTRAS HAYA CASOS SIN CERRAR:
+      if (hayCasosActivos || newAlertas.urgencias.cantidad > 0) {
+        if (!alarmaSilenciadaRef.current) {
+          audioAlert.startLoopSonidoTriage();
+        }
+      } else {
+        audioAlert.stopLoopSonidoTriage();
+      }
+
+      // RINGTONE CHECK: Si un nuevo paciente llegó a Fase 3, sonar ringtone
+      if (newAlertas.detecto.cantidad > prevPendientesDetectoRef.current) {
+        audioAlert.playRingtoneFase3();
+      }
+      prevPendientesDetectoRef.current = newAlertas.detecto.cantidad;
+      setAlertas(newAlertas);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Login handlers
@@ -193,21 +180,15 @@ export default function App() {
         timestampPasoFase2: Date.now(),
       };
 
-      const res = await fetch("/api/pacientes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nuevoPayload),
-      });
+      await crearPacienteFirestore(nuevoPayload as Partial<PacienteRegistro>);
 
-      if (res.ok) {
-        setTriageGuardadoExito(true);
-        alarmaSilenciadaRef.current = false;
-        setAlarmaSilenciada(false);
-        audioAlert.startLoopSonidoTriage();
-        fetchDatosServidor();
-      }
+      setTriageGuardadoExito(true);
+      alarmaSilenciadaRef.current = false;
+      setAlarmaSilenciada(false);
+      audioAlert.startLoopSonidoTriage();
     } catch (err) {
       console.error("Error guardando Fase 1:", err);
+      alert("No se pudo guardar el paciente en el servidor de la nube. Verifique su conexión e intente nuevamente.");
     }
   };
 
@@ -217,14 +198,7 @@ export default function App() {
     patch: Partial<PacienteRegistro>
   ) => {
     try {
-      const res = await fetch(`/api/pacientes/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      if (res.ok) {
-        await fetchDatosServidor();
-      }
+      await actualizarPacienteFirestore(id, patch);
     } catch (err) {
       console.error("Error actualizando paciente:", err);
     }
@@ -263,17 +237,9 @@ export default function App() {
         timestampPasoFase3: tsPaso3,
       };
 
-      const res = await fetch(`/api/pacientes/${paciente.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        audioAlert.playRingtoneFase3();
-        alert("¡Paciente reportado a Equipo DETECTO (Fase 3)! El caso también continúa abierto y sincronizado en Fase 2.");
-        await fetchDatosServidor();
-      }
+      await actualizarPacienteFirestore(paciente.id, payload);
+      audioAlert.playRingtoneFase3();
+      alert("¡Paciente reportado a Equipo DETECTO (Fase 3)! El caso también continúa abierto y sincronizado en Fase 2.");
     } catch (err) {
       console.error("Error reportando a DETECTO:", err);
     }
@@ -333,17 +299,9 @@ export default function App() {
         timestampFinalizado: ahoraTs,
       };
 
-      const res = await fetch(`/api/pacientes/${paciente.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        alert("¡Caso cerrado exitosamente y guardado en Centro de Control de Casos (✓✓✓)!");
-        await fetchDatosServidor();
-        audioAlert.playBeep(1600, 250);
-      }
+      await actualizarPacienteFirestore(paciente.id, payload);
+      alert("¡Caso cerrado exitosamente y guardado en Centro de Control de Casos (✓✓✓)!");
+      audioAlert.playBeep(1600, 250);
     } catch (err) {
       console.error("Error cerrando caso:", err);
     }
@@ -352,56 +310,41 @@ export default function App() {
   // Delete to trash (ONLY Super Usuario)
   const handleEliminarPaciente = async (id: string) => {
     if (usuarioActual?.rol !== "super_usuario") {
-      alert("Solo el Super Usuario puede eliminar registros.");
-      return;
+      throw new Error("Solo el Super Usuario puede eliminar registros.");
     }
     try {
-      const res = await fetch(`/api/pacientes/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        fetchDatosServidor();
-      }
+      await moverAPapeleraFirestore(id);
     } catch (err) {
       console.error("Error al mover a papelera:", err);
+      throw err;
     }
   };
 
   // Restore from trash (Super Usuario)
   const handleRestaurarPaciente = async (id: string) => {
     try {
-      const res = await fetch(`/api/papelera/restaurar/${id}`, { method: "POST" });
-      if (res.ok) {
-        fetchDatosServidor();
-      }
+      await restaurarPacienteFirestore(id);
     } catch (err) {
       console.error("Error restaurando:", err);
+      throw err;
     }
   };
 
   // Purge from trash (Super Usuario)
   const handlePurgarPaciente = async (id: string) => {
     try {
-      const res = await fetch(`/api/papelera/purgar/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        fetchDatosServidor();
-      }
+      await purgarPacienteFirestore(id);
     } catch (err) {
       console.error("Error purgando:", err);
+      throw err;
     }
   };
 
   // Edit patient record (Super Usuario)
   const handleGuardarEdicionPaciente = async (pActualizado: PacienteRegistro) => {
     try {
-      const res = await fetch(`/api/pacientes/${pActualizado.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pActualizado),
-      });
-
-      if (res.ok) {
-        setPacienteParaEditar(null);
-        fetchDatosServidor();
-      }
+      await actualizarPacienteFirestore(pActualizado.id, pActualizado);
+      setPacienteParaEditar(null);
     } catch (err) {
       console.error("Error guardando edición:", err);
     }
