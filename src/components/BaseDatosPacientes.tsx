@@ -34,6 +34,10 @@ import {
   Users,
   BarChart3,
   Table2,
+  FlaskConical,
+  FileCheck2,
+  ShieldCheck,
+  Unlock,
 } from "lucide-react";
 
 interface BaseDatosPacientesProps {
@@ -657,370 +661,669 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
       </div>
 
       {/* MODAL HISTORIA CLÍNICA COMPLETA DE PACIENTE */}
-      {pacienteDetalle && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
-          <div className="bg-white rounded-3xl max-w-3xl w-full p-5 sm:p-7 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-mono font-black bg-slate-900 text-sky-300 px-2.5 py-1 rounded-lg">
-                    {pacienteDetalle.codigo}
-                  </span>
-                  <span className="text-xs font-black bg-sky-100 text-sky-900 px-3 py-1 rounded-lg border border-sky-300">
-                    ID: {pacienteDetalle.identificacionPaciente || "Sin identificación"}
-                  </span>
+      {pacienteDetalle && (() => {
+        const detalleActual =
+          pacientes.find((x) => x.id === pacienteDetalle.id) ||
+          papelera.find((x) => x.id === pacienteDetalle.id) ||
+          pacienteDetalle;
+        const catOriginalDetalle: 1 | 2 | 3 = detalleActual.categoriaTriage || 1;
+        const catValidadaDetalle: 1 | 2 | 3 =
+          detalleActual.categoriaTriageValidada || catOriginalDetalle;
+        const huboCambioCat = catValidadaDetalle !== catOriginalDetalle;
+        const estadosDetalle = detalleActual.estadosModulos || {
+          fase1Validada: Boolean(detalleActual.aprobadoUrgencias || detalleActual.fase2Completada),
+          checklist1Completado: Boolean(
+            detalleActual.formularioEquipoSepsis &&
+              Object.keys(detalleActual.formularioEquipoSepsis).length > 0
+          ),
+          laboratoriosCompletado: Boolean(
+            detalleActual.laboratorios && Object.keys(detalleActual.laboratorios).length > 0
+          ),
+          anexoCompletado: Boolean(
+            (catValidadaDetalle === 3 &&
+              detalleActual.anexo2Data &&
+              Object.keys(detalleActual.anexo2Data).length > 0) ||
+              (catValidadaDetalle === 2 &&
+                detalleActual.anexo3Data &&
+                Object.keys(detalleActual.anexo3Data).length > 0) ||
+              (catValidadaDetalle === 1 &&
+                detalleActual.anexo4Data &&
+                Object.keys(detalleActual.anexo4Data).length > 0)
+          ),
+        };
+        const tsSubDetalle = detalleActual.tiemposSubmodulos || {};
+        const tiempoFase3Detalle =
+          detalleActual.tiempoFase3Segundos > 0
+            ? detalleActual.tiempoFase3Segundos
+            : detalleActual.timestampPasoFase3 && detalleActual.timestampFinalizado
+            ? Math.max(
+                1,
+                Math.floor(
+                  (detalleActual.timestampFinalizado - detalleActual.timestampPasoFase3) / 1000
+                )
+              )
+            : 0;
+        const nombreDefaultDetalle = detalleActual.nombre
+          ? `${detalleActual.nombre} (ID: ${detalleActual.identificacionPaciente})`
+          : detalleActual.identificacionPaciente || detalleActual.codigo;
 
-                  {pacienteDetalle.categoriaTriage === 3 && (
-                    <span className="text-[11px] font-black bg-[#ff9999] text-black px-2.5 py-0.5 rounded border border-[#e65c5c]">
-                      Cat 3: CHOQUE / DOMᵃ ({pacienteDetalle.puntajeTamizaje ?? 0} pts)
+        const labOrigenTexto =
+          tsSubDetalle.laboratoriosCompletadoPor === "laboratorios"
+            ? "Módulo Externo de Laboratorios"
+            : tsSubDetalle.laboratoriosCompletadoPor === "fase3"
+            ? "Equipo DETECTO (Fase 3)"
+            : tsSubDetalle.laboratoriosCompletadoPor === "fase2"
+            ? "Médico de Urgencias (Fase 2)"
+            : null;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-5">
+            <div className="bg-white rounded-3xl max-w-5xl w-full p-5 sm:p-7 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200">
+              {/* Modal Header */}
+              <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-mono font-black bg-slate-900 text-sky-300 px-2.5 py-1 rounded-lg">
+                      {detalleActual.codigo}
                     </span>
-                  )}
-                  {pacienteDetalle.categoriaTriage === 2 && (
-                    <span className="text-[11px] font-black bg-[#f4b400] text-black px-2.5 py-0.5 rounded border border-[#d99b00]">
-                      Cat 2: ALERTA SEPSIS ({pacienteDetalle.puntajeTamizaje ?? 0} pts)
+                    <span className="text-xs font-black bg-sky-100 text-sky-900 px-3 py-1 rounded-lg border border-sky-300">
+                      ID: {detalleActual.identificacionPaciente || "Sin identificación"}
                     </span>
-                  )}
-                  {pacienteDetalle.categoriaTriage === 1 && (
-                    <span className="text-[11px] font-black bg-[#7ecc61] text-black px-2.5 py-0.5 rounded border border-[#5ba83e]">
-                      Cat 1: BAJA POSIBILIDAD ({pacienteDetalle.puntajeTamizaje ?? 0} pts)
-                    </span>
-                  )}
+
+                    {catValidadaDetalle === 3 && (
+                      <span className="text-[11px] font-black bg-[#ff9999] text-black px-2.5 py-0.5 rounded border border-[#e65c5c]">
+                        Cat 3: CHOQUE / DOMᵃ ({detalleActual.puntajeTamizaje ?? 0} pts)
+                      </span>
+                    )}
+                    {catValidadaDetalle === 2 && (
+                      <span className="text-[11px] font-black bg-[#f4b400] text-black px-2.5 py-0.5 rounded border border-[#d99b00]">
+                        Cat 2: ALERTA SEPSIS ({detalleActual.puntajeTamizaje ?? 0} pts)
+                      </span>
+                    )}
+                    {catValidadaDetalle === 1 && (
+                      <span className="text-[11px] font-black bg-[#7ecc61] text-black px-2.5 py-0.5 rounded border border-[#5ba83e]">
+                        Cat 1: BAJA POSIBILIDAD ({detalleActual.puntajeTamizaje ?? 0} pts)
+                      </span>
+                    )}
+
+                    {huboCambioCat && (
+                      <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300">
+                        Reclasificado desde Triage Cat {catOriginalDetalle}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+                    Historia Clínica Digital de Sepsis{" "}
+                    {detalleActual.nombre ? `· ${detalleActual.nombre}` : ""}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
+                    <span>Fecha de ingreso: {formatearFecha(detalleActual.fechaCreacion)}</span>
+                    {detalleActual.timestampFinalizado && (
+                      <span>Cierre: {formatearFecha(detalleActual.timestampFinalizado)}</span>
+                    )}
+                    <span>Estado: <strong className="text-slate-700 uppercase">{detalleActual.estado}</strong></span>
+                  </div>
                 </div>
 
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900">
-                  Historia Clínica Digital de Sepsis {pacienteDetalle.nombre ? `· ${pacienteDetalle.nombre}` : ""}
-                </h3>
-                <span className="text-xs text-slate-500 font-medium block">
-                  Fecha de ingreso: {formatearFecha(pacienteDetalle.fechaCreacion)}
+                <button
+                  type="button"
+                  onClick={() => setPacienteDetalle(null)}
+                  className="text-slate-500 hover:text-slate-800 font-black text-sm bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors cursor-pointer shrink-0"
+                >
+                  ✕ Cerrar
+                </button>
+              </div>
+
+              {/* 3 Time Cards */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
+                <div className="bg-sky-50/80 border border-sky-200 p-3 rounded-2xl shadow-sm">
+                  <span className="text-[11px] font-bold text-sky-800 uppercase block">
+                    Fase 1 (Triage)
+                  </span>
+                  <span className="text-base sm:text-lg font-mono font-black text-sky-950 mt-0.5 block">
+                    {formatearTiempo(detalleActual.tiempoFase1Segundos)}
+                  </span>
+                </div>
+                <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-2xl shadow-sm">
+                  <span className="text-[11px] font-bold text-amber-800 uppercase block">
+                    Fase 2 (Urgencias)
+                  </span>
+                  <span className="text-base sm:text-lg font-mono font-black text-amber-950 mt-0.5 block">
+                    {formatearTiempo(detalleActual.tiempoFase2Segundos)}
+                  </span>
+                </div>
+                <div className="bg-purple-50/80 border border-purple-200 p-3 rounded-2xl shadow-sm">
+                  <span className="text-[11px] font-bold text-purple-800 uppercase block">
+                    Fase 3 (DETECTO)
+                  </span>
+                  <span className="text-base sm:text-lg font-mono font-black text-purple-950 mt-0.5 block">
+                    {formatearTiempo(tiempoFase3Detalle)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Total time banner */}
+              <div className="bg-slate-900 text-white p-3 rounded-2xl flex items-center justify-between text-xs font-bold shadow-md">
+                <span className="flex items-center gap-2 text-sky-300">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  <span>Tiempo Total de Respuesta Asistencial:</span>
+                </span>
+                <span className="font-mono text-sm text-emerald-300 font-black">
+                  {formatearTiempo(detalleActual.tiempoTotalSegundos)}
                 </span>
               </div>
 
-              <button
-                onClick={() => setPacienteDetalle(null)}
-                className="text-slate-400 hover:text-slate-700 font-black text-sm bg-slate-100 hover:bg-slate-200 p-2 rounded-xl transition-colors cursor-pointer"
-              >
-                ✕ Cerrar
-              </button>
-            </div>
-
-            {/* 3 Time Cards */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
-              <div className="bg-sky-50/80 border border-sky-200 p-3 rounded-2xl shadow-sm">
-                <span className="text-[11px] font-bold text-sky-800 uppercase block">Fase 1 (Triage)</span>
-                <span className="text-base sm:text-lg font-mono font-black text-sky-950 mt-0.5 block">
-                  {formatearTiempo(pacienteDetalle.tiempoFase1Segundos)}
-                </span>
-              </div>
-              <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-2xl shadow-sm">
-                <span className="text-[11px] font-bold text-amber-800 uppercase block">Fase 2 (Urgencias)</span>
-                <span className="text-base sm:text-lg font-mono font-black text-amber-950 mt-0.5 block">
-                  {formatearTiempo(pacienteDetalle.tiempoFase2Segundos)}
-                </span>
-              </div>
-              <div className="bg-purple-50/80 border border-purple-200 p-3 rounded-2xl shadow-sm">
-                <span className="text-[11px] font-bold text-purple-800 uppercase block">Fase 3 (DETECTO)</span>
-                <span className="text-base sm:text-lg font-mono font-black text-purple-950 mt-0.5 block">
-                  {formatearTiempo(pacienteDetalle.tiempoFase3Segundos)}
-                </span>
-              </div>
-            </div>
-
-            {/* Total time banner */}
-            <div className="bg-slate-900 text-white p-3 rounded-2xl flex items-center justify-between text-xs font-bold shadow-md">
-              <span className="flex items-center gap-2 text-sky-300">
-                <Clock className="w-4 h-4 text-emerald-400" />
-                <span>Tiempo Total de Respuesta Asistencial:</span>
-              </span>
-              <span className="font-mono text-sm text-emerald-300 font-black">
-                {formatearTiempo(pacienteDetalle.tiempoTotalSegundos)}
-              </span>
-            </div>
-
-            {/* TARJETAS CLÍNICAS EXPANDIDAS DE CADA FASE */}
-            <div className="space-y-4">
-              {/* TARJETA 1: FASE 1 - TRIAGE / TAMIZAJE DE SEPSIS */}
-              <div className="bg-white border-2 border-sky-400 rounded-2xl p-5 shadow-md space-y-4">
-                <div className="flex items-center justify-between border-b border-sky-100 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-sky-600 text-white rounded-xl shadow-sm">
-                      <Stethoscope className="w-5 h-5" />
+              {/* TARJETAS CLÍNICAS EXPANDIDAS DE CADA FASE */}
+              <div className="space-y-5">
+                {/* TARJETA 1: FASE 1 - TRIAGE / TAMIZAJE DE SEPSIS */}
+                <div className="bg-white border-2 border-sky-400 rounded-2xl p-5 shadow-md space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-sky-600 text-white rounded-xl shadow-sm">
+                        <Stethoscope className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-black text-slate-900">
+                          1. Diagnóstico y Tamizaje en Fase 1 (Triage)
+                        </h4>
+                        <span className="text-xs text-sky-700 font-bold">
+                          Evaluador: {detalleActual.autorTriage || "Enfermería Triage"} · Tiempo:{" "}
+                          {formatearTiempo(detalleActual.tiempoFase1Segundos)}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-base font-black text-slate-900">
-                        1. Diagnóstico y Tamizaje en Triage
-                      </h4>
-                      <span className="text-xs text-sky-700 font-bold">
-                        Evaluador: {pacienteDetalle.autorTriage || "Enfermería Triage"} · Tiempo: {formatearTiempo(pacienteDetalle.tiempoFase1Segundos)}
-                      </span>
+                    <span className="text-xs font-black bg-sky-100 text-sky-900 px-3 py-1 rounded-full border border-sky-300">
+                      {detalleActual.puntajeTamizaje ?? 0} / 8 Puntos
+                    </span>
+                  </div>
+
+                  {/* TABLA COMPLETA CON LOS 8 CRITERIOS EVALUADOS */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-black uppercase text-slate-700 tracking-wider block">
+                      Tabla de Criterios de Tamizaje Evaluados:
+                    </span>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 bg-slate-50/50">
+                      {CRITERIOS_TAMIZAJE_SEPSIS.map((criterio, idx) => {
+                        const cumplido =
+                          detalleActual.criteriosTamizaje &&
+                          detalleActual.criteriosTamizaje[idx] === true;
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`p-2.5 flex items-center justify-between text-xs transition-colors ${
+                              cumplido ? "bg-emerald-50/80 font-bold text-slate-900" : "text-slate-600"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-mono text-slate-400 text-[11px] w-4">
+                                {idx + 1}.
+                              </span>
+                              <span>{criterio}</span>
+                            </div>
+
+                            {cumplido ? (
+                              <span className="inline-flex items-center gap-1 font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg text-[11px] shrink-0">
+                                <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                                <span>Presente (1 pt)</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px] px-2 py-0.5 shrink-0">
+                                No marcado (0 pt)
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                  <span className="text-xs font-black bg-sky-100 text-sky-900 px-3 py-1 rounded-full border border-sky-300">
-                    {pacienteDetalle.puntajeTamizaje ?? 0} / 8 Puntos
-                  </span>
+
+                  {/* Banner de Clasificación Triage */}
+                  <div>
+                    <span className="text-xs font-bold text-slate-600 block mb-1">
+                      Clasificación Inicial Registrada en Triage:
+                    </span>
+                    {catOriginalDetalle === 3 && (
+                      <div className="bg-[#ff9999] border-2 border-[#e65c5c] text-black font-black text-center py-2.5 px-4 rounded-xl text-sm shadow-sm">
+                        ALERTA CHOQUE SEPTICOᵇ O DOMᵃ (Categoría 3)
+                      </div>
+                    )}
+                    {catOriginalDetalle === 2 && (
+                      <div className="bg-[#f4b400] border-2 border-[#d99b00] text-black font-black text-center py-2.5 px-4 rounded-xl text-sm shadow-sm">
+                        ALERTA DE SEPSIS (SIN DOMᵃ) (Categoría 2)
+                      </div>
+                    )}
+                    {catOriginalDetalle === 1 && (
+                      <div className="bg-[#7ecc61] border-2 border-[#5ba83e] text-black font-black text-center py-2.5 px-4 rounded-xl text-sm shadow-sm">
+                        BAJA POSIBILIDAD DE SEPSIS (Categoría 1)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Resumen redactado en Triage */}
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
+                      Notas / Diagnóstico en Triage:
+                    </span>
+                    <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed whitespace-pre-wrap">
+                      {detalleActual.diagnosticoTriage || "Sin notas adicionales registradas en Triage"}
+                    </p>
+                  </div>
                 </div>
 
-                {/* TABLA COMPLETA CON LOS 8 CRITERIOS EVALUADOS */}
-                <div className="space-y-2">
-                  <span className="text-xs font-black uppercase text-slate-700 tracking-wider block">
-                    Tabla de Criterios de Tamizaje Evaluados:
-                  </span>
-                  <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 bg-slate-50/50">
-                    {CRITERIOS_TAMIZAJE_SEPSIS.map((criterio, idx) => {
-                      const cumplido =
-                        pacienteDetalle.criteriosTamizaje &&
-                        pacienteDetalle.criteriosTamizaje[idx] === true;
+                {/* TARJETA 2: FASE 2 - URGENCIAS Y TODOS SUS SUBMÓDULOS + LABORATORIO */}
+                <div className="bg-white border-2 border-amber-400 rounded-2xl p-5 shadow-md space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-amber-500 text-slate-950 rounded-xl shadow-sm">
+                        <HeartPulse className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-black text-slate-900">
+                          2. Fase 2 (Urgencias), Submódulos y Laboratorios
+                        </h4>
+                        <span className="text-xs text-amber-800 font-bold">
+                          Evaluador: {detalleActual.autorUrgencias || "Médico de Urgencias"} · Tiempo:{" "}
+                          {formatearTiempo(detalleActual.tiempoFase2Segundos)}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-xs font-black px-3 py-1 rounded-full border ${
+                        detalleActual.aplicaSepsis !== false
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                          : "bg-red-100 text-red-800 border-red-300"
+                      }`}
+                    >
+                      {detalleActual.aplicaSepsis !== false ? "SÍ APLICA SEPSIS" : "DESCARTADO"}
+                    </span>
+                  </div>
 
-                      return (
-                        <div
-                          key={idx}
-                          className={`p-2.5 flex items-center justify-between text-xs transition-colors ${
-                            cumplido ? "bg-emerald-50/80 font-bold text-slate-900" : "text-slate-600"
+                  {/* Resumen Estado de los 4 Submódulos */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    <div
+                      className={`p-3 rounded-xl border text-xs ${
+                        estadosDetalle.fase1Validada
+                          ? "bg-emerald-50 border-emerald-300"
+                          : "bg-amber-50 border-amber-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-slate-800">Submódulo 1</span>
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                            estadosDetalle.fase1Validada
+                              ? "bg-emerald-600 text-white"
+                              : "bg-amber-200 text-amber-950"
                           }`}
                         >
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-mono text-slate-400 text-[11px] w-4">
-                              {idx + 1}.
-                            </span>
-                            <span>{criterio}</span>
-                          </div>
+                          {estadosDetalle.fase1Validada ? "✓ Validado" : "Pendiente"}
+                        </span>
+                      </div>
+                      <span className="block font-bold text-slate-700 mt-1">
+                        Validación Triage
+                      </span>
+                      <span className="block text-[11px] font-mono text-slate-500 mt-0.5">
+                        Tiempo: {formatearTiempo(tsSubDetalle.validacionTriageSegundos)}
+                      </span>
+                    </div>
 
-                          {cumplido ? (
-                            <span className="inline-flex items-center gap-1 font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg text-[11px]">
-                              <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                              <span>Presente (1 pt)</span>
-                            </span>
+                    <div
+                      className={`p-3 rounded-xl border text-xs ${
+                        estadosDetalle.checklist1Completado
+                          ? "bg-emerald-50 border-emerald-300"
+                          : "bg-rose-50 border-rose-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-slate-800">Submódulo 2</span>
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                            estadosDetalle.checklist1Completado
+                              ? "bg-emerald-600 text-white"
+                              : "bg-rose-200 text-rose-900"
+                          }`}
+                        >
+                          {estadosDetalle.checklist1Completado ? "✓ Diligenciado" : "Pendiente"}
+                        </span>
+                      </div>
+                      <span className="block font-bold text-slate-700 mt-1">
+                        Lista de Chequeo 1
+                      </span>
+                      <span className="block text-[11px] font-mono text-slate-500 mt-0.5">
+                        Tiempo: {formatearTiempo(tsSubDetalle.checklist1Segundos)}
+                      </span>
+                    </div>
+
+                    <div
+                      className={`p-3 rounded-xl border text-xs ${
+                        estadosDetalle.laboratoriosCompletado
+                          ? "bg-emerald-50 border-emerald-300"
+                          : "bg-rose-50 border-rose-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-slate-800">Submódulo 3 / Lab</span>
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                            estadosDetalle.laboratoriosCompletado
+                              ? "bg-emerald-600 text-white"
+                              : "bg-rose-200 text-rose-900"
+                          }`}
+                        >
+                          {estadosDetalle.laboratoriosCompletado ? "✓ Completado" : "Pendiente"}
+                        </span>
+                      </div>
+                      <span className="block font-bold text-slate-700 mt-1">
+                        Resultados Laboratorio
+                      </span>
+                      <span className="block text-[11px] font-mono text-slate-500 mt-0.5">
+                        Tiempo: {formatearTiempo(tsSubDetalle.laboratoriosSegundos)}
+                      </span>
+                    </div>
+
+                    <div
+                      className={`p-3 rounded-xl border text-xs ${
+                        estadosDetalle.anexoCompletado
+                          ? "bg-emerald-50 border-emerald-300"
+                          : "bg-rose-50 border-rose-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-slate-800">Submódulo 4</span>
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                            estadosDetalle.anexoCompletado
+                              ? "bg-emerald-600 text-white"
+                              : "bg-rose-200 text-rose-900"
+                          }`}
+                        >
+                          {estadosDetalle.anexoCompletado ? "✓ Completado" : "Pendiente"}
+                        </span>
+                      </div>
+                      <span className="block font-bold text-slate-700 mt-1">
+                        Anexo {catValidadaDetalle === 3 ? "2 Rojo" : catValidadaDetalle === 2 ? "3 Amarillo" : "4 Verde"}
+                      </span>
+                      <span className="block text-[11px] font-mono text-slate-500 mt-0.5">
+                        Tiempo: {formatearTiempo(tsSubDetalle.anexoSegundos)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* SUBMÓDULO 1: VALIDACIÓN MÉDICA DE TRIAGE Y CONCEPTO */}
+                  <div className="border border-amber-200 rounded-2xl p-4 bg-amber-50/30 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black uppercase text-amber-900 tracking-wider">
+                        Submódulo 1 · Validación Médica de Triage y Concepto Clínico
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-600">
+                        Categoría Validada:{" "}
+                        <strong className="text-slate-900">
+                          {detalleActual.categoriaTriageValidadaLabel ||
+                            detalleActual.categoriaTriageLabel ||
+                            `Categoría ${catValidadaDetalle}`}
+                        </strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="bg-white border border-amber-200 p-3 rounded-xl">
+                        <span className="text-[11px] font-bold text-amber-900 uppercase block mb-1">
+                          Decisión sobre Categoría de Triage:
+                        </span>
+                        <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                          {detalleActual.aprobadoUrgencias !== false && !detalleActual.motivoCambioCategoria ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>Categoría de Triage Confirmada (Cat {catValidadaDetalle})</span>
+                            </>
                           ) : (
-                            <span className="text-slate-400 text-[11px] px-2 py-0.5">
-                              No marcado (0 pt)
-                            </span>
+                            <>
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>
+                                Reclasificada: Cat {catOriginalDetalle} → Cat {catValidadaDetalle}
+                              </span>
+                            </>
                           )}
-                        </div>
-                      );
-                    })}
+                        </span>
+                        {detalleActual.motivoCambioCategoria && (
+                          <p className="text-xs text-slate-700 mt-1.5 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                            <strong>Motivo del cambio:</strong> {detalleActual.motivoCambioCategoria}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="bg-white border border-amber-200 p-3 rounded-xl">
+                        <span className="text-[11px] font-bold text-amber-900 uppercase block mb-1">
+                          Resolución Asistencial:
+                        </span>
+                        <span className="text-xs font-black text-slate-900 block">
+                          {detalleActual.aplicaSepsis === false
+                            ? `Descartado en Urgencias (${detalleActual.motivoDescarte || "Sin motivo"})`
+                            : detalleActual.reportadoADetecto
+                            ? "✓ Reportado a Equipo DETECTO para seguimiento y cierre"
+                            : "En atención por Médico de Urgencias"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200">
+                      <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
+                        Concepto / Nota Clínica Médico de Urgencias:
+                      </span>
+                      <p className="text-xs sm:text-sm text-slate-900 font-medium leading-relaxed whitespace-pre-wrap">
+                        {detalleActual.diagnosticoUrgencias || "Sin diagnóstico médico registrado"}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Banner de Clasificación Triage */}
-                <div>
-                  <span className="text-xs font-bold text-slate-600 block mb-1">
-                    Clasificación Resultante en Triage:
-                  </span>
-                  {pacienteDetalle.categoriaTriage === 3 && (
-                    <div className="bg-[#ff9999] border-2 border-[#e65c5c] text-black font-black text-center py-2.5 px-4 rounded-xl text-sm shadow-sm">
-                      ALERTA CHOQUE SEPTICOᵇ O DOMᵃ (Categoría 3)
-                    </div>
-                  )}
-                  {pacienteDetalle.categoriaTriage === 2 && (
-                    <div className="bg-[#f4b400] border-2 border-[#d99b00] text-black font-black text-center py-2.5 px-4 rounded-xl text-sm shadow-sm">
-                      ALERTA DE SEPSIS (SIN DOMᵃ) (Categoría 2)
-                    </div>
-                  )}
-                  {(!pacienteDetalle.categoriaTriage || pacienteDetalle.categoriaTriage === 1) && (
-                    <div className="bg-[#7ecc61] border-2 border-[#5ba83e] text-black font-black text-center py-2.5 px-4 rounded-xl text-sm shadow-sm">
-                      BAJA POSIBILIDAD DE SEPSIS (Categoría 1)
-                    </div>
-                  )}
-                </div>
-
-                {/* Resumen redactado en Triage */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
-                    Notas / Diagnóstico en Triage:
-                  </span>
-                  <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">
-                    "{pacienteDetalle.diagnosticoTriage || "Sin notas adicionales"}"
-                  </p>
-                </div>
-              </div>
-
-              {/* TARJETA 2: FASE 2 - URGENCIAS / EQUIPO DE SEPSIS */}
-              <div className="bg-white border-2 border-amber-400 rounded-2xl p-5 shadow-md space-y-4">
-                <div className="flex items-center justify-between border-b border-amber-100 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-amber-500 text-slate-950 rounded-xl shadow-sm">
-                      <HeartPulse className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-base font-black text-slate-900">
-                        2. Validación Médica de Urgencias (Equipo de Sepsis)
-                      </h4>
-                      <span className="text-xs text-amber-800 font-bold">
-                        Evaluador: {pacienteDetalle.autorUrgencias || "Médico de Urgencias"} · Tiempo: {formatearTiempo(pacienteDetalle.tiempoFase2Segundos)}
+                  {/* SUBMÓDULO 2: LISTA DE CHEQUEO 1 (SIEMPRE VISIBLE TAL CUAL SE DILIGENCIÓ) */}
+                  <div className="border-2 border-[#007b8f]/30 rounded-2xl p-4 bg-[#f4fbfc] space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black uppercase text-[#074c5d] tracking-wider flex items-center gap-1.5">
+                        <FileCheck2 className="w-4 h-4 text-[#007b8f]" />
+                        <span>Submódulo 2 · Lista de Chequeo 1 — Evaluación por Equipo de Sepsis</span>
+                      </span>
+                      <span
+                        className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                          estadosDetalle.checklist1Completado
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : "bg-slate-100 text-slate-600 border-slate-300"
+                        }`}
+                      >
+                        {estadosDetalle.checklist1Completado
+                          ? `✓ Diligenciado (${formatearTiempo(tsSubDetalle.checklist1Segundos)})`
+                          : "Pendiente / Sin guardar"}
                       </span>
                     </div>
-                  </div>
-                  <span
-                    className={`text-xs font-black px-3 py-1 rounded-full border ${
-                      pacienteDetalle.aplicaSepsis !== false
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                        : "bg-red-100 text-red-800 border-red-300"
-                    }`}
-                  >
-                    {pacienteDetalle.aplicaSepsis !== false ? "SÍ APLICA SEPSIS" : "DESCARTADO"}
-                  </span>
-                </div>
-
-                {/* Cápsula de Decisión Médica */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl">
-                    <span className="text-[11px] font-bold text-amber-900 uppercase block mb-1">
-                      Validación de Categoría Triage:
-                    </span>
-                    <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                      {pacienteDetalle.aprobadoUrgencias !== false ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>Categoría de Triage Aprobada</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-4 h-4 text-red-600" />
-                          <span>Categoría No Aprobada / Rectificada</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl">
-                    <span className="text-[11px] font-bold text-amber-900 uppercase block mb-1">
-                      Resolución Asistencial:
-                    </span>
-                    <span className="text-xs font-black text-slate-900">
-                      {pacienteDetalle.aplicaSepsis !== false
-                        ? "Reportado a Equipo DETECTO para tratamiento"
-                        : `No aplica sepsis (${pacienteDetalle.motivoDescarte || "Sin motivo"})`}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Concepto del Médico de Urgencias */}
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                  <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
-                    Concepto y Diagnóstico del Médico de Urgencias:
-                  </span>
-                  <p className="text-xs sm:text-sm text-slate-900 font-medium leading-relaxed">
-                    "{pacienteDetalle.diagnosticoUrgencias || "Sin diagnóstico médico registrado"}"
-                  </p>
-                </div>
-
-                {/* Lista de Chequeo 1 (PDF) digitalizada */}
-                {pacienteDetalle.formularioEquipoSepsis && (
-                  <div className="pt-2">
-                    <span className="text-xs font-black uppercase text-[#074c5d] tracking-wider block mb-2">
-                      Lista de Chequeo 1 — Evaluación por Equipo de Sepsis:
-                    </span>
                     <FormularioEquipoSepsisPdf
-                      data={pacienteDetalle.formularioEquipoSepsis}
+                      data={detalleActual.formularioEquipoSepsis || {}}
                       soloLectura={true}
                     />
                   </div>
-                )}
 
-                {/* Resultados de Laboratorio */}
-                {pacienteDetalle.laboratorios && Object.keys(pacienteDetalle.laboratorios).length > 0 && (
-                  <div className="pt-2">
-                    <span className="text-xs font-black uppercase text-[#074c5d] tracking-wider block mb-2">
-                      Resultados de Laboratorio y Evaluación DOM:
-                    </span>
+                  {/* SUBMÓDULO 3: RESULTADOS DE LABORATORIO (FASE 2 / MÓDULO EXTERNO DE LABORATORIOS) */}
+                  <div className="border-2 border-teal-500/35 rounded-2xl p-4 bg-teal-50/30 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black uppercase text-teal-900 tracking-wider flex items-center gap-1.5">
+                        <FlaskConical className="w-4 h-4 text-teal-700" />
+                        <span>Submódulo 3 / Laboratorio · Paraclínicos, PaFiO₂/SpFiO₂ y Hemocultivos</span>
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {labOrigenTexto && (
+                          <span className="text-[11px] font-bold bg-teal-100 text-teal-900 border border-teal-300 px-2.5 py-0.5 rounded-full">
+                            Origen: {labOrigenTexto}
+                          </span>
+                        )}
+                        <span
+                          className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                            estadosDetalle.laboratoriosCompletado
+                              ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                              : "bg-slate-100 text-slate-600 border-slate-300"
+                          }`}
+                        >
+                          {estadosDetalle.laboratoriosCompletado
+                            ? `✓ Diligenciado (${formatearTiempo(tsSubDetalle.laboratoriosSegundos)})`
+                            : "Pendiente / Sin guardar"}
+                        </span>
+                      </div>
+                    </div>
+
                     <FormularioLaboratorios
-                      data={pacienteDetalle.laboratorios}
-                      categoriaValidada={
-                        pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage || 1
-                      }
+                      data={detalleActual.laboratorios || {}}
+                      categoriaValidada={catValidadaDetalle}
                       soloLectura={true}
                     />
+
+                    {detalleActual.laboratorios?.observaciones && (
+                      <div className="bg-white border border-teal-200 rounded-xl p-3">
+                        <span className="text-[11px] font-black uppercase text-teal-900 block mb-1">
+                          Observaciones / Notas de Laboratorio:
+                        </span>
+                        <p className="text-xs sm:text-sm text-slate-800 font-medium whitespace-pre-wrap">
+                          {detalleActual.laboratorios.observaciones}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
 
-                {/* Anexo Clínico (2, 3 o 4) */}
-                {(pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage) === 3 &&
-                  pacienteDetalle.anexo2Data &&
-                  Object.keys(pacienteDetalle.anexo2Data).length > 0 && (
-                    <div className="pt-2">
-                      <FormularioAnexo2Rojo
-                        data={pacienteDetalle.anexo2Data}
-                        laboratorios={pacienteDetalle.laboratorios}
-                        soloLectura={true}
-                      />
-                    </div>
-                  )}
-                {(pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage) === 2 &&
-                  pacienteDetalle.anexo3Data &&
-                  Object.keys(pacienteDetalle.anexo3Data).length > 0 && (
-                    <div className="pt-2">
-                      <FormularioAnexo3Amarillo
-                        data={pacienteDetalle.anexo3Data}
-                        soloLectura={true}
-                      />
-                    </div>
-                  )}
-                {(pacienteDetalle.categoriaTriageValidada || pacienteDetalle.categoriaTriage || 1) === 1 &&
-                  pacienteDetalle.anexo4Data &&
-                  Object.keys(pacienteDetalle.anexo4Data).length > 0 && (
-                    <div className="pt-2">
-                      <FormularioAnexo4Verde
-                        data={pacienteDetalle.anexo4Data}
-                        soloLectura={true}
-                      />
-                    </div>
-                  )}
-              </div>
-
-              {/* TARJETA 3: FASE 3 - EQUIPO DETECTO */}
-              <div className="bg-white border-2 border-purple-400 rounded-2xl p-5 shadow-md space-y-4">
-                <div className="flex items-center justify-between border-b border-purple-100 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-purple-700 text-white rounded-xl shadow-sm">
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-base font-black text-slate-900">
-                        3. Dictamen y Registro Equipo DETECTO
-                      </h4>
-                      <span className="text-xs text-purple-700 font-bold">
-                        Evaluador: {pacienteDetalle.autorDetecto || "Líder DETECTO"} · Tiempo: {formatearTiempo(pacienteDetalle.tiempoFase3Segundos)}
+                  {/* SUBMÓDULO 4: ANEXO CLÍNICO ESPECÍFICO (2 ROJO / 3 AMARILLO / 4 VERDE) */}
+                  <div className="border-2 border-slate-300 rounded-2xl p-4 bg-slate-50/70 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-[#0c2340]" />
+                        <span>
+                          Submódulo 4 ·{" "}
+                          {catValidadaDetalle === 3
+                            ? "Anexo 2 — Alerta de Choque Séptico / DOM (Rojo)"
+                            : catValidadaDetalle === 2
+                            ? "Anexo 3 — Alerta de Sepsis Sin DOM (Amarillo)"
+                            : "Anexo 4 — Baja Probabilidad de Sepsis (Verde)"}
+                        </span>
+                      </span>
+                      <span
+                        className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                          estadosDetalle.anexoCompletado
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : "bg-slate-100 text-slate-600 border-slate-300"
+                        }`}
+                      >
+                        {estadosDetalle.anexoCompletado
+                          ? `✓ Completado (${formatearTiempo(tsSubDetalle.anexoSegundos)})`
+                          : "Pendiente / Sin guardar"}
                       </span>
                     </div>
+
+                    {catValidadaDetalle === 3 && (
+                      <FormularioAnexo2Rojo
+                        data={{
+                          pacienteNombre: nombreDefaultDetalle,
+                          ...(detalleActual.anexo2Data || {}),
+                        }}
+                        laboratorios={detalleActual.laboratorios}
+                        soloLectura={true}
+                      />
+                    )}
+                    {catValidadaDetalle === 2 && (
+                      <FormularioAnexo3Amarillo
+                        data={{
+                          pacienteNombre: nombreDefaultDetalle,
+                          ...(detalleActual.anexo3Data || {}),
+                        }}
+                        soloLectura={true}
+                      />
+                    )}
+                    {catValidadaDetalle === 1 && (
+                      <FormularioAnexo4Verde
+                        data={{
+                          pacienteNombre: nombreDefaultDetalle,
+                          ...(detalleActual.anexo4Data || {}),
+                        }}
+                        soloLectura={true}
+                      />
+                    )}
                   </div>
-                  <span
-                    className={`text-xs font-black px-3 py-1 rounded-full border ${
-                      pacienteDetalle.fase3Completada
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                        : "bg-purple-100 text-purple-900 border-purple-300"
-                    }`}
-                  >
-                    {pacienteDetalle.fase3Completada ? "✓✓✓ Caso Cerrado y Registrado" : "En proceso DETECTO"}
-                  </span>
                 </div>
 
-                {/* Observaciones de DETECTO */}
-                <div className="bg-purple-50/60 p-3.5 rounded-xl border border-purple-200">
-                  <span className="text-xs font-bold text-purple-900 uppercase block mb-1">
-                    Observaciones y Conducta del Equipo DETECTO:
-                  </span>
-                  <p className="text-xs sm:text-sm text-slate-900 font-medium leading-relaxed">
-                    "{pacienteDetalle.diagnosticoDetecto || "Caso registrado formalmente en base de datos sin observaciones adicionales."}"
-                  </p>
+                {/* TARJETA 3: FASE 3 - EQUIPO DETECTO Y COMENTARIOS */}
+                <div className="bg-white border-2 border-purple-400 rounded-2xl p-5 shadow-md space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-purple-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-purple-700 text-white rounded-xl shadow-sm">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-black text-slate-900">
+                          3. Fase 3 — Dictamen, Comentarios y Cierre Equipo DETECTO
+                        </h4>
+                        <span className="text-xs text-purple-700 font-bold">
+                          Evaluador: {detalleActual.autorDetecto || "Líder DETECTO"} · Tiempo Fase 3:{" "}
+                          {formatearTiempo(tiempoFase3Detalle)}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-xs font-black px-3 py-1 rounded-full border ${
+                        detalleActual.fase3Completada
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                          : detalleActual.reportadoADetecto || detalleActual.estado === "pendiente_detecto"
+                          ? "bg-purple-100 text-purple-900 border-purple-300"
+                          : "bg-slate-100 text-slate-600 border-slate-300"
+                      }`}
+                    >
+                      {detalleActual.fase3Completada
+                        ? "✓✓✓ Caso Cerrado y Registrado"
+                        : detalleActual.reportadoADetecto || detalleActual.estado === "pendiente_detecto"
+                        ? "En seguimiento DETECTO"
+                        : "Aún no reportado a DETECTO"}
+                    </span>
+                  </div>
+
+                  {/* Comentarios / Dictamen de Fase 3 */}
+                  <div className="bg-purple-50/70 p-4 rounded-xl border border-purple-200 space-y-1.5">
+                    <span className="text-xs font-black text-purple-900 uppercase block">
+                      Comentarios / Dictamen y Conducta de Fase 3 (Equipo DETECTO):
+                    </span>
+                    <p className="text-xs sm:text-sm text-slate-900 font-medium leading-relaxed whitespace-pre-wrap">
+                      {detalleActual.diagnosticoDetecto && detalleActual.diagnosticoDetecto.trim()
+                        ? detalleActual.diagnosticoDetecto
+                        : "Sin comentarios registrados en Fase 3."}
+                    </p>
+                  </div>
+
+                  {/* Justificación de cierre anticipado si existió */}
+                  {detalleActual.habilitadoCierreAnticipado && (
+                    <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3.5 text-xs text-amber-950 space-y-1">
+                      <span className="font-black flex items-center gap-1.5">
+                        <Unlock className="w-4 h-4 text-amber-700" />
+                        <span>Cierre Anticipado Habilitado desde Fase 3:</span>
+                      </span>
+                      <p className="font-medium whitespace-pre-wrap">
+                        {detalleActual.motivoCierreAnticipado || "Sin motivo registrado."}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Modal Footer */}
-            <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
-              <span className="text-xs text-slate-500 font-medium">
-                Hospital Infantil Los Ángeles · DETECTO© 2026
-              </span>
-              <button
-                onClick={() => setPacienteDetalle(null)}
-                className="bg-[#0c2340] hover:bg-sky-950 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer shadow-md"
-              >
-                Cerrar Detalle
-              </button>
+              {/* Modal Footer */}
+              <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
+                <span className="text-xs text-slate-500 font-medium">
+                  Hospital Infantil Los Ángeles · DETECTO© 2026
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPacienteDetalle(null)}
+                  className="bg-[#0c2340] hover:bg-sky-950 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer shadow-md"
+                >
+                  Cerrar Detalle
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL DE CONFIRMACIÓN PARA BORRAR / PURGAR (SUPER USUARIO) */}
       {confirmacionBorrar && (

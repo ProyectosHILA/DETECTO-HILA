@@ -170,6 +170,13 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
         <h2 className="text-sm sm:text-base md:text-lg text-slate-800 font-extrabold max-w-3xl mx-auto tracking-tight leading-snug">
           DEtección Temprana de sEpsis en Cáncer y Tratamiento dirigidO
         </h2>
+        <div className="flex items-center justify-center gap-3 pt-0.5">
+          <span className="h-[1px] w-8 sm:w-12 bg-gradient-to-r from-transparent to-[#c59b27]/80" />
+          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.28em] bg-gradient-to-r from-[#8f6b12] via-[#cfa32d] to-[#8f6b12] bg-clip-text text-transparent drop-shadow-[0_1px_1px_rgba(184,134,11,0.18)]">
+            HORA DORADA - SALVA VIDAS
+          </p>
+          <span className="h-[1px] w-8 sm:w-12 bg-gradient-to-l from-transparent to-[#c59b27]/80" />
+        </div>
         <p className="text-xs text-slate-500 font-medium">
           Hospital Infantil Los Ángeles (HILA) · Protocolo Institucional de Alerta Temprana
         </p>

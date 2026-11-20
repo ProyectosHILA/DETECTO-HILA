@@ -70,6 +70,155 @@ export const EcgBackground: React.FC = () => {
 
     let offset = 0;
 
+    // 4 translucent blue floating virus elements across the entire background
+    interface VirusParticle {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      radius: number;
+      spikes: number;
+      angle: number;
+      vAngle: number;
+      phase: number;
+      alpha: number;
+    }
+
+    const viruses: VirusParticle[] = [
+      {
+        x: width * 0.14,
+        y: height * 0.22,
+        vx: 0.32,
+        vy: 0.18,
+        radius: 56,
+        spikes: 14,
+        angle: 0.2,
+        vAngle: 0.0022,
+        phase: 0,
+        alpha: 0.14,
+      },
+      {
+        x: width * 0.82,
+        y: height * 0.26,
+        vx: -0.26,
+        vy: 0.22,
+        radius: 72,
+        spikes: 16,
+        angle: 1.4,
+        vAngle: -0.0017,
+        phase: 1.8,
+        alpha: 0.12,
+      },
+      {
+        x: width * 0.28,
+        y: height * 0.78,
+        vx: 0.24,
+        vy: -0.21,
+        radius: 46,
+        spikes: 12,
+        angle: 2.5,
+        vAngle: 0.0028,
+        phase: 3.4,
+        alpha: 0.15,
+      },
+      {
+        x: width * 0.74,
+        y: height * 0.74,
+        vx: -0.3,
+        vy: -0.16,
+        radius: 64,
+        spikes: 14,
+        angle: 0.9,
+        vAngle: -0.002,
+        phase: 5.1,
+        alpha: 0.13,
+      },
+    ];
+
+    const drawTranslucentVirus = (v: VirusParticle, timeTick: number) => {
+      const floatY = Math.sin(timeTick * 0.015 + v.phase) * 0.25;
+      v.x += v.vx;
+      v.y += v.vy + floatY;
+      v.angle += v.vAngle;
+
+      const margin = v.radius + 35;
+      if (v.x < -margin) v.x = width + margin;
+      if (v.x > width + margin) v.x = -margin;
+      if (v.y < -margin) v.y = height + margin;
+      if (v.y > height + margin) v.y = -margin;
+
+      ctx.save();
+      ctx.translate(v.x, v.y);
+      ctx.rotate(v.angle);
+
+      // Soft translucent blue outer halo
+      const haloGrad = ctx.createRadialGradient(0, 0, v.radius * 0.2, 0, 0, v.radius * 1.35);
+      haloGrad.addColorStop(0, `rgba(14, 165, 233, ${v.alpha * 0.95})`);
+      haloGrad.addColorStop(0.65, `rgba(2, 132, 199, ${v.alpha * 0.55})`);
+      haloGrad.addColorStop(1, "rgba(2, 132, 199, 0)");
+
+      // Draw spikes (glycoprotein crowns)
+      const spikeLen = v.radius * 0.28;
+      ctx.strokeStyle = `rgba(2, 132, 199, ${v.alpha * 1.15})`;
+      ctx.fillStyle = `rgba(56, 189, 248, ${v.alpha * 1.25})`;
+      ctx.lineWidth = 2;
+
+      for (let i = 0; i < v.spikes; i++) {
+        const theta = (i / v.spikes) * Math.PI * 2;
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+
+        const xStart = cosT * (v.radius - 2);
+        const yStart = sinT * (v.radius - 2);
+        const xEnd = cosT * (v.radius + spikeLen);
+        const yEnd = sinT * (v.radius + spikeLen);
+
+        ctx.beginPath();
+        ctx.moveTo(xStart, yStart);
+        ctx.lineTo(xEnd, yEnd);
+        ctx.stroke();
+
+        // Rounded crown knob at tip
+        ctx.beginPath();
+        ctx.arc(xEnd, yEnd, Math.max(2.6, v.radius * 0.068), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Main translucent viral envelope body
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, v.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Delicate viral membrane ring
+      ctx.strokeStyle = `rgba(2, 132, 199, ${v.alpha * 1.35})`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, v.radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Inner capsid ring & subtle translucent organelles
+      ctx.strokeStyle = `rgba(56, 189, 248, ${v.alpha * 0.9})`;
+      ctx.lineWidth = 1.1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(0, 0, v.radius * 0.62, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = `rgba(14, 165, 233, ${v.alpha * 0.85})`;
+      const innerDots = 5;
+      for (let d = 0; d < innerDots; d++) {
+        const da = (d / innerDots) * Math.PI * 2 + 0.35;
+        const dr = v.radius * 0.32;
+        ctx.beginPath();
+        ctx.arc(Math.cos(da) * dr, Math.sin(da) * dr, v.radius * 0.075, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    };
+
     const render = () => {
       ctx.clearRect(0, 0, width, height);
 
@@ -87,10 +236,15 @@ export const EcgBackground: React.FC = () => {
         ctx.lineTo(x, height);
       }
       for (let y = 0; y <= height; y += gridSize) {
-        ctx.moveTo(y, 0);
+        ctx.moveTo(0, y);
         ctx.lineTo(width, y);
       }
       ctx.stroke();
+
+      // 1b. Draw the 4 translucent floating blue viruses behind the ECG pulse & main UI
+      for (const v of viruses) {
+        drawTranslucentVirus(v, offset);
+      }
 
       // 2. Draw Subtle Static Metallic Blue Reference Baseline (very faint)
       ctx.beginPath();

@@ -11,7 +11,9 @@ import {
   Filter,
   PieChart,
   TrendingUp,
+  FileDown,
 } from "lucide-react";
+import { exportTableroControlPdf } from "../utils/tableroPdfExport";
 
 interface TableroControlDashboardProps {
   pacientes: PacienteRegistro[];
@@ -164,6 +166,7 @@ export const TableroControlDashboard: React.FC<TableroControlDashboardProps> = (
   const [casoSeleccionadoId, setCasoSeleccionadoId] = useState<string>("todos");
   const [modoPastelCasos, setModoPastelCasos] = useState<"categoria" | "meta">("categoria");
   const [hoverLineIdx, setHoverLineIdx] = useState<number | null>(null);
+  const [exportandoPdf, setExportandoPdf] = useState<boolean>(false);
   const [ahora, setAhora] = useState<number>(Date.now());
 
   useEffect(() => {
@@ -615,6 +618,33 @@ export const TableroControlDashboard: React.FC<TableroControlDashboardProps> = (
             <option value="activos">En atención activa</option>
             <option value="completados">Casos cerrados</option>
           </select>
+
+          <button
+            type="button"
+            disabled={metricasFiltradas.length === 0 || exportandoPdf}
+            onClick={() => {
+              if (metricasFiltradas.length === 0) return;
+              setExportandoPdf(true);
+              try {
+                exportTableroControlPdf({
+                  metricasFiltradas,
+                  serieCronologica,
+                  filtroCategoria,
+                  filtroEstado,
+                  casoSeleccionadoId,
+                  modoPastelCasos,
+                  stats,
+                });
+              } finally {
+                setTimeout(() => setExportandoPdf(false), 400);
+              }
+            }}
+            className="bg-[#0f2b5c] hover:bg-sky-900 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            title="Descargar Tablero de Control completo en PDF (KPIs, gráficos y comparativa por caso)"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>{exportandoPdf ? "Generando PDF..." : "Descargar PDF"}</span>
+          </button>
         </div>
       </div>
 

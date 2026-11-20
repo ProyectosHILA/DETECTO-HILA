@@ -140,6 +140,8 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
   const [motivoHabilitarCierre, setMotivoHabilitarCierre] = useState(
     paciente.motivoCierreAnticipado || ""
   );
+  const [guardandoComentario, setGuardandoComentario] = useState(false);
+  const [comentarioGuardadoOk, setComentarioGuardadoOk] = useState(false);
 
   // Track active patient ID, dirty flags (unsaved user edits), and last server snapshots
   // so 3-second background polling NEVER erases what the user is typing.
@@ -478,6 +480,24 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
     setModuloAbierto(null);
   };
 
+  // HANDLER: Guardar comentarios de Fase 3 inmediatamente
+  const handleGuardarComentarioDetecto = async () => {
+    setGuardandoComentario(true);
+    setComentarioGuardadoOk(false);
+    try {
+      const comentarioTrim = diagnosticoDetecto.trim();
+      dirtyFlagsRef.current.diagnosticoDetecto = false;
+      lastSnapshotsRef.current.diagnosticoDetecto = comentarioTrim;
+      await onActualizarPaciente({
+        diagnosticoDetecto: comentarioTrim,
+      });
+      setComentarioGuardadoOk(true);
+      setTimeout(() => setComentarioGuardadoOk(false), 3000);
+    } finally {
+      setGuardandoComentario(false);
+    }
+  };
+
   // HANDLER: Habilitar Cerrar Caso en Fase 3
   const handleConfirmarHabilitarCierre = async () => {
     if (motivoHabilitarCierre.trim().length < 5) {
@@ -485,12 +505,18 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
       return;
     }
     const motivoTrim = motivoHabilitarCierre.trim();
+    const comentarioTrim = diagnosticoDetecto.trim();
     dirtyFlagsRef.current.motivoHabilitarCierre = false;
     lastSnapshotsRef.current.motivoCierreAnticipado = motivoTrim;
+    if (comentarioTrim) {
+      dirtyFlagsRef.current.diagnosticoDetecto = false;
+      lastSnapshotsRef.current.diagnosticoDetecto = comentarioTrim;
+    }
 
     await onActualizarPaciente({
       habilitadoCierreAnticipado: true,
       motivoCierreAnticipado: motivoTrim,
+      ...(comentarioTrim ? { diagnosticoDetecto: comentarioTrim } : {}),
     });
     setMostrarFormHabilitarCierre(false);
   };
@@ -947,11 +973,26 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
                   value={diagnosticoDetecto}
                   onChange={(e) => {
                     dirtyFlagsRef.current.diagnosticoDetecto = true;
+                    setComentarioGuardadoOk(false);
                     setDiagnosticoDetecto(e.target.value);
                   }}
                   placeholder="Observaciones finales del Equipo DETECTO antes de cerrar el caso..."
                   className="w-full bg-purple-50/40 border border-purple-200 rounded-xl p-3 text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-purple-500"
                 />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-emerald-700">
+                    {comentarioGuardadoOk ? "✓ Comentario guardado en la historia del paciente" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={guardandoComentario}
+                    onClick={handleGuardarComentarioDetecto}
+                    className="bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 px-3 py-1.5 rounded-xl text-xs font-black inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{guardandoComentario ? "Guardando..." : "Guardar Comentario"}</span>
+                  </button>
+                </div>
               </div>
             )}
 
