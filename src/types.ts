@@ -107,6 +107,7 @@ export type RolUsuario =
   | "medico_urgencias"
   | "grupo_detecto"
   | "laboratorio"
+  | "terapias"
   | "super_usuario";
 
 export interface UsuarioSesion {
@@ -132,6 +133,9 @@ export interface PacienteRegistro {
   identificacionPaciente: string; // Número de identificación / Documento del paciente
   nombre?: string;
   apellido?: string;
+  edadAnos?: string;
+  edadMeses?: string;
+  vitalesIngreso?: VitalesIngresoData;
   fechaCreacion: number;
   faseActual: 1 | 2 | 3 | 4;
   estado: "en_triage" | "pendiente_urgencias" | "pendiente_detecto" | "completado" | "descartado";
@@ -179,6 +183,8 @@ export interface PacienteRegistro {
     checklist1Completado: boolean;
     laboratoriosCompletado: boolean;
     anexoCompletado: boolean;
+    vasopresoresCompletado?: boolean;
+    terapiasCompletado?: boolean;
   };
 
   // Tiempos granulares por submódulo para analítica de cuellos de botella en Tablero de Control
@@ -193,6 +199,10 @@ export interface PacienteRegistro {
     timestampAnexo?: number;
     anexoSegundos?: number;
     anexoTipo?: string;
+    timestampVasopresores?: number;
+    vasopresoresSegundos?: number;
+    timestampTerapias?: number;
+    terapiasSegundos?: number;
   };
 
   // Formulario digitalizado Lista de Chequeo 1 (PDF) - Evaluación por Equipo de Sepsis
@@ -205,11 +215,46 @@ export interface PacienteRegistro {
   anexo2Data?: Anexo2ChoqueData;
   anexo3Data?: Anexo3AlertaSepsisData;
   anexo4Data?: Anexo4BajaProbabilidadData;
+
+  // Módulo 5 (Solo Categoría 3): Vasopresores por Vena Periférica
+  vasopresoresData?: VasopresoresData;
   
   // Papelera
   enPapelera?: boolean;
   fechaEliminacion?: number;
   diasRestantes?: number;
+}
+
+export interface VitalesIngresoData {
+  pas?: string; // Tensión arterial sistólica
+  pad?: string; // Tensión arterial diastólica
+  pam?: string; // Tensión arterial media
+  temperatura?: string;
+  fc?: string; // Frecuencia cardíaca
+  fr?: string; // Frecuencia respiratoria
+  satO2?: string; // Saturación de oxígeno
+  pesoKg?: string; // Peso actual
+  imc?: string; // Índice de masa corporal
+  escalaDolor?: string; // Escala de dolor
+  neurologico?: string; // Neurológico
+  horaIngreso?: string; // Hora automática Bogotá, Colombia (HH:mm)
+}
+
+export interface VasopresoresData {
+  iniciado?: "si" | "pendiente_respuesta_bolo" | "";
+  medicamento?: "adrenalina" | "noradrenalina" | "ambos" | "";
+  viaAcceso?: "vena_periferica" | "intraosea" | "acceso_central" | "";
+  metodo?: "metodo_a" | "metodo_b" | "";
+  pesoKg?: string;
+  dosisMcgKgMin?: string;
+  velocidadMlHr?: string;
+  diluyente?: "SSN 0.9%" | "DAD 5%" | "";
+  horaInicio?: string;
+  considerarHidrocortisona?: boolean;
+  hidrocortisonaDosis?: string;
+  segundoVasoactivoAccesoCentral?: boolean;
+  responsable?: string;
+  observaciones?: string;
 }
 
 export interface ParaclinicoEntry {

@@ -7,12 +7,16 @@ import {
   Anexo2ChoqueData,
   Anexo3AlertaSepsisData,
   Anexo4BajaProbabilidadData,
+  VasopresoresData,
 } from "../types";
 import { FormularioEquipoSepsisPdf } from "./FormularioEquipoSepsisPdf";
 import { FormularioLaboratorios } from "./FormularioLaboratorios";
 import { FormularioAnexo2Rojo } from "./FormularioAnexo2Rojo";
 import { FormularioAnexo3Amarillo } from "./FormularioAnexo3Amarillo";
 import { FormularioAnexo4Verde } from "./FormularioAnexo4Verde";
+import { FormularioVasopresores } from "./FormularioVasopresores";
+import { MicrofonoIaClinico } from "./MicrofonoIaClinico";
+import { ModalListaLaboratoriosCups } from "./ModalListaLaboratoriosCups";
 import { VoiceDictationButton } from "./VoiceDictationButton";
 import {
   Clock,
@@ -30,6 +34,9 @@ import {
   Stethoscope,
   Timer,
   Save,
+  Syringe,
+  Table2,
+  Wind,
 } from "lucide-react";
 
 interface WorkspaceAtencionCasoProps {
@@ -51,6 +58,21 @@ const LABELS_CATEGORIA: Record<1 | 2 | 3, string> = {
   3: "ALERTA CHOQUE SEPTICOᵇ O DOMᵃ",
 };
 
+const deepMergePlain = (target: any, patch: any): any => {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) return patch;
+  const out: any = { ...(target && typeof target === "object" ? target : {}) };
+  for (const key of Object.keys(patch)) {
+    const val = patch[key];
+    if (val === undefined || val === null || val === "") continue;
+    if (typeof val === "object" && !Array.isArray(val)) {
+      out[key] = deepMergePlain(out[key], val);
+    } else {
+      out[key] = val;
+    }
+  }
+  return out;
+};
+
 export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
   paciente,
   modoFase,
@@ -60,8 +82,9 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
   onVolverALista,
 }) => {
   const [moduloAbierto, setModuloAbierto] = useState<
-    null | "fase1" | "checklist1" | "laboratorios" | "anexo"
+    null | "fase1" | "checklist1" | "laboratorios" | "anexo" | "vasopresores"
   >(null);
+  const [mostrarListaCups, setMostrarListaCups] = useState<boolean>(false);
 
   // Live timers
   const [ahora, setAhora] = useState<number>(Date.now());
@@ -81,6 +104,8 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
     checklist1Completado: false,
     laboratoriosCompletado: false,
     anexoCompletado: false,
+    vasopresoresCompletado: false,
+    terapiasCompletado: false,
   };
 
   const categoriaValidada: 1 | 2 | 3 =
@@ -89,6 +114,54 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
     paciente.categoriaTriageValidadaLabel ||
     paciente.categoriaTriageLabel ||
     LABELS_CATEGORIA[categoriaValidada];
+
+  // Auto-fill helpers from Fase 1 (Edad Ingreso + Vitales Ingreso + Hora Bogotá)
+  const nombreDefaultAnexo = paciente.nombre
+    ? `${paciente.nombre} (ID: ${paciente.identificacionPaciente})`
+    : paciente.identificacionPaciente || paciente.codigo;
+
+  const buildChecklist1Prefilled = (base?: FormularioEquipoSepsis): FormularioEquipoSepsis => {
+    const v = paciente.vitalesIngreso;
+    const cl = base || {};
+    const sv = cl.signosVitales || {};
+    return {
+      ...cl,
+      signosVitales: {
+        ...sv,
+        temperatura: sv.temperatura || v?.temperatura || "",
+        fc: sv.fc || v?.fc || "",
+        fr: sv.fr || v?.fr || "",
+        pas: sv.pas || v?.pas || "",
+        pam: sv.pam || v?.pam || "",
+        satO2: sv.satO2 || v?.satO2 || "",
+      },
+      horaInicio: cl.horaInicio || v?.horaIngreso || "",
+    };
+  };
+
+  const buildAnexoPrefilled = <T extends Record<string, any>>(base?: T): T => {
+    const v = paciente.vitalesIngreso;
+    const b: any = base || {};
+    return {
+      ...b,
+      pacienteNombre: b.pacienteNombre || nombreDefaultAnexo,
+      edadAnos: b.edadAnos || paciente.edadAnos || "",
+      edadMeses: b.edadMeses || paciente.edadMeses || "",
+      pesoKg: b.pesoKg || v?.pesoKg || "",
+      horaInicio: b.horaInicio || v?.horaIngreso || "",
+    } as T;
+  };
+
+  const buildVasopresoresPrefilled = (base?: VasopresoresData): VasopresoresData => {
+    const v = paciente.vitalesIngreso;
+    const b = base || {};
+    return {
+      viaAcceso: "vena_periferica",
+      ...b,
+      pesoKg: b.pesoKg || v?.pesoKg || "",
+      horaInicio: b.horaInicio || v?.horaIngreso || "",
+    };
+  };
 
   // Botón 1 Validation state
   const [decisionCat, setDecisionCat] = useState<"mantener" | "cambiar">(
@@ -108,8 +181,8 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
   );
 
   // Botón 2 Checklist 1 form state
-  const [checklist1Data, setChecklist1Data] = useState<FormularioEquipoSepsis>(
-    paciente.formularioEquipoSepsis || {}
+  const [checklist1Data, setChecklist1Data] = useState<FormularioEquipoSepsis>(() =>
+    buildChecklist1Prefilled(paciente.formularioEquipoSepsis)
   );
 
   // Botón 3 Laboratorios form state
@@ -118,22 +191,20 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
   );
 
   // Botón 4 Anexo form states
-  const nombreDefaultAnexo = paciente.nombre
-    ? `${paciente.nombre} (ID: ${paciente.identificacionPaciente})`
-    : paciente.identificacionPaciente || paciente.codigo;
+  const [anexo2Data, setAnexo2Data] = useState<Anexo2ChoqueData>(() =>
+    buildAnexoPrefilled(paciente.anexo2Data)
+  );
+  const [anexo3Data, setAnexo3AlertaData] = useState<Anexo3AlertaSepsisData>(() =>
+    buildAnexoPrefilled(paciente.anexo3Data)
+  );
+  const [anexo4Data, setAnexo4Data] = useState<Anexo4BajaProbabilidadData>(() =>
+    buildAnexoPrefilled(paciente.anexo4Data)
+  );
 
-  const [anexo2Data, setAnexo2Data] = useState<Anexo2ChoqueData>({
-    pacienteNombre: nombreDefaultAnexo,
-    ...(paciente.anexo2Data || {}),
-  });
-  const [anexo3Data, setAnexo3AlertaData] = useState<Anexo3AlertaSepsisData>({
-    pacienteNombre: nombreDefaultAnexo,
-    ...(paciente.anexo3Data || {}),
-  });
-  const [anexo4Data, setAnexo4Data] = useState<Anexo4BajaProbabilidadData>({
-    pacienteNombre: nombreDefaultAnexo,
-    ...(paciente.anexo4Data || {}),
-  });
+  // Botón 5 Vasopresores (Solo Categoría 3)
+  const [vasopresoresData, setVasopresoresData] = useState<VasopresoresData>(() =>
+    buildVasopresoresPrefilled(paciente.vasopresoresData)
+  );
 
   // Habilitar Cerrar Caso modal/box in Fase 3
   const [mostrarFormHabilitarCierre, setMostrarFormHabilitarCierre] = useState(false);
@@ -142,6 +213,8 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
   );
   const [guardandoComentario, setGuardandoComentario] = useState(false);
   const [comentarioGuardadoOk, setComentarioGuardadoOk] = useState(false);
+  const [guardandoModulo, setGuardandoModulo] = useState(false);
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
 
   // Track active patient ID, dirty flags (unsaved user edits), and last server snapshots
   // so 3-second background polling NEVER erases what the user is typing.
@@ -151,6 +224,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
     checklist1: false,
     laboratorios: false,
     anexo: false,
+    vasopresores: false,
     diagnosticoUrgencias: false,
     diagnosticoDetecto: false,
     motivoHabilitarCierre: false,
@@ -163,6 +237,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
     anexo2: JSON.stringify(paciente.anexo2Data || {}),
     anexo3: JSON.stringify(paciente.anexo3Data || {}),
     anexo4: JSON.stringify(paciente.anexo4Data || {}),
+    vasopresores: JSON.stringify(paciente.vasopresoresData || {}),
     diagnosticoUrgencias: paciente.diagnosticoUrgencias || "",
     diagnosticoDetecto: paciente.diagnosticoDetecto || "",
     motivoCierreAnticipado: paciente.motivoCierreAnticipado || "",
@@ -176,6 +251,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
     const snapAnexo2 = JSON.stringify(paciente.anexo2Data || {});
     const snapAnexo3 = JSON.stringify(paciente.anexo3Data || {});
     const snapAnexo4 = JSON.stringify(paciente.anexo4Data || {});
+    const snapVasopresores = JSON.stringify(paciente.vasopresoresData || {});
     const snapDiagUrg = paciente.diagnosticoUrgencias || "";
     const snapDiagDet = paciente.diagnosticoDetecto || "";
     const snapMotivoCambio = paciente.motivoCambioCategoria || "";
@@ -189,6 +265,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
         checklist1: false,
         laboratorios: false,
         anexo: false,
+        vasopresores: false,
         diagnosticoUrgencias: false,
         diagnosticoDetecto: false,
         motivoHabilitarCierre: false,
@@ -198,11 +275,12 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
       setMotivoCambioCat(snapMotivoCambio);
       setDiagnosticoUrgencias(snapDiagUrg);
       setDiagnosticoDetecto(snapDiagDet);
-      setChecklist1Data(paciente.formularioEquipoSepsis || {});
+      setChecklist1Data(buildChecklist1Prefilled(paciente.formularioEquipoSepsis));
       setLabsData(paciente.laboratorios || {});
-      setAnexo2Data({ pacienteNombre: nombreDefaultAnexo, ...(paciente.anexo2Data || {}) });
-      setAnexo3AlertaData({ pacienteNombre: nombreDefaultAnexo, ...(paciente.anexo3Data || {}) });
-      setAnexo4Data({ pacienteNombre: nombreDefaultAnexo, ...(paciente.anexo4Data || {}) });
+      setAnexo2Data(buildAnexoPrefilled(paciente.anexo2Data));
+      setAnexo3AlertaData(buildAnexoPrefilled(paciente.anexo3Data));
+      setAnexo4Data(buildAnexoPrefilled(paciente.anexo4Data));
+      setVasopresoresData(buildVasopresoresPrefilled(paciente.vasopresoresData));
       setMotivoHabilitarCierre(snapMotivoCierre);
 
       lastSnapshotsRef.current = {
@@ -213,6 +291,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
         anexo2: snapAnexo2,
         anexo3: snapAnexo3,
         anexo4: snapAnexo4,
+        vasopresores: snapVasopresores,
         diagnosticoUrgencias: snapDiagUrg,
         diagnosticoDetecto: snapDiagDet,
         motivoCierreAnticipado: snapMotivoCierre,
@@ -236,7 +315,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
       !dirtyFlagsRef.current.checklist1 &&
       snapChecklist1 !== lastSnapshotsRef.current.checklist1
     ) {
-      setChecklist1Data(paciente.formularioEquipoSepsis || {});
+      setChecklist1Data(buildChecklist1Prefilled(paciente.formularioEquipoSepsis));
       lastSnapshotsRef.current.checklist1 = snapChecklist1;
     }
 
@@ -250,17 +329,25 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
 
     if (!dirtyFlagsRef.current.anexo) {
       if (snapAnexo2 !== lastSnapshotsRef.current.anexo2) {
-        setAnexo2Data({ pacienteNombre: nombreDefaultAnexo, ...(paciente.anexo2Data || {}) });
+        setAnexo2Data(buildAnexoPrefilled(paciente.anexo2Data));
         lastSnapshotsRef.current.anexo2 = snapAnexo2;
       }
       if (snapAnexo3 !== lastSnapshotsRef.current.anexo3) {
-        setAnexo3AlertaData({ pacienteNombre: nombreDefaultAnexo, ...(paciente.anexo3Data || {}) });
+        setAnexo3AlertaData(buildAnexoPrefilled(paciente.anexo3Data));
         lastSnapshotsRef.current.anexo3 = snapAnexo3;
       }
       if (snapAnexo4 !== lastSnapshotsRef.current.anexo4) {
-        setAnexo4Data({ pacienteNombre: nombreDefaultAnexo, ...(paciente.anexo4Data || {}) });
+        setAnexo4Data(buildAnexoPrefilled(paciente.anexo4Data));
         lastSnapshotsRef.current.anexo4 = snapAnexo4;
       }
+    }
+
+    if (
+      !dirtyFlagsRef.current.vasopresores &&
+      snapVasopresores !== lastSnapshotsRef.current.vasopresores
+    ) {
+      setVasopresoresData(buildVasopresoresPrefilled(paciente.vasopresoresData));
+      lastSnapshotsRef.current.vasopresores = snapVasopresores;
     }
 
     if (
@@ -317,20 +404,23 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
         : Math.max(paciente.tiempoFase2Segundos || 0, segsFase2EnVivo)
       : segsFase3EnVivo;
 
-  // All 4 buttons green?
+  // All required modules green? (Cat 3 includes Botón 5 Vasopresores)
   const todosVerdes =
     estados.fase1Validada &&
     estados.checklist1Completado &&
     estados.laboratoriosCompletado &&
-    estados.anexoCompletado;
+    estados.anexoCompletado &&
+    (categoriaValidada !== 3 || Boolean(estados.vasopresoresCompletado));
 
   const puedeCerrarCaso =
     todosVerdes || (modoFase === "fase3" && Boolean(paciente.habilitadoCierreAnticipado));
 
   // HANDLER: Validar Botón 1 (Triage)
   const handleValidarFase1 = async () => {
+    if (guardandoModulo) return;
+    setErrorGuardado(null);
     if (decisionCat === "cambiar" && motivoCambioCat.trim().length < 5) {
-      alert("Debe explicar obligatoriamente por qué cambia la clasificación asignada en Triage.");
+      setErrorGuardado("Debe explicar obligatoriamente por qué cambia la clasificación asignada en Triage (mínimo 5 caracteres).");
       return;
     }
 
@@ -346,33 +436,42 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
       paciente.tiemposSubmodulos?.validacionTriageSegundos ??
       Math.max(1, Math.floor((ahoraTs - baseFase2Ts) / 1000));
 
-    dirtyFlagsRef.current.fase1 = false;
-    lastSnapshotsRef.current.categoriaValidada = String(catFinal);
-    lastSnapshotsRef.current.motivoCambioCat = motivoFinal;
+    setGuardandoModulo(true);
+    try {
+      await onActualizarPaciente({
+        categoriaTriageValidada: catFinal,
+        categoriaTriageValidadaLabel: labelFinal,
+        motivoCambioCategoria: motivoFinal,
+        diagnosticoUrgencias:
+          diagnosticoUrgencias.trim() ||
+          paciente.diagnosticoUrgencias ||
+          `Validación Triage: ${labelFinal}`,
+        aprobadoUrgencias: decisionCat === "mantener",
+        aplicaSepsis: true,
+        tiempoFase2Segundos: modoFase === "fase2" ? segsFaseActual : paciente.tiempoFase2Segundos,
+        estadosModulos: {
+          ...estados,
+          fase1Validada: true,
+        },
+        tiemposSubmodulos: {
+          ...(paciente.tiemposSubmodulos || {}),
+          timestampValidacionTriage: tsValidacion,
+          validacionTriageSegundos: segsValidacion,
+        },
+      });
 
-    await onActualizarPaciente({
-      categoriaTriageValidada: catFinal,
-      categoriaTriageValidadaLabel: labelFinal,
-      motivoCambioCategoria: motivoFinal,
-      diagnosticoUrgencias:
-        diagnosticoUrgencias.trim() ||
-        paciente.diagnosticoUrgencias ||
-        `Validación Triage: ${labelFinal}`,
-      aprobadoUrgencias: decisionCat === "mantener",
-      aplicaSepsis: true,
-      tiempoFase2Segundos: modoFase === "fase2" ? segsFaseActual : paciente.tiempoFase2Segundos,
-      estadosModulos: {
-        ...estados,
-        fase1Validada: true,
-      },
-      tiemposSubmodulos: {
-        ...(paciente.tiemposSubmodulos || {}),
-        timestampValidacionTriage: tsValidacion,
-        validacionTriageSegundos: segsValidacion,
-      },
-    });
-
-    setModuloAbierto(null);
+      dirtyFlagsRef.current.fase1 = false;
+      lastSnapshotsRef.current.categoriaValidada = String(catFinal);
+      lastSnapshotsRef.current.motivoCambioCat = motivoFinal;
+      setModuloAbierto(null);
+    } catch (err: any) {
+      setErrorGuardado(
+        "No se pudo guardar la validación en el servidor. Verifique su conexión e intente nuevamente."
+      );
+      console.error("Error validando Triage:", err);
+    } finally {
+      setGuardandoModulo(false);
+    }
   };
 
   // HANDLER: Guardar Botón 2 (Lista de Chequeo 1)
@@ -480,6 +579,81 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
     setModuloAbierto(null);
   };
 
+  // HANDLER: Guardar Botón 5 (Vasopresores por Vena Periférica - Solo Categoría 3)
+  const handleGuardarVasopresores = async () => {
+    const ahoraTs = Date.now();
+    const refTs =
+      paciente.tiemposSubmodulos?.timestampValidacionTriage ||
+      paciente.timestampPasoFase2 ||
+      paciente.timestampInicio ||
+      ahoraTs;
+
+    dirtyFlagsRef.current.vasopresores = false;
+    lastSnapshotsRef.current.vasopresores = JSON.stringify(vasopresoresData || {});
+
+    await onActualizarPaciente({
+      vasopresoresData,
+      tiempoFase2Segundos: modoFase === "fase2" ? segsFaseActual : paciente.tiempoFase2Segundos,
+      tiempoFase3Segundos: modoFase === "fase3" ? segsFaseActual : paciente.tiempoFase3Segundos,
+      estadosModulos: {
+        ...estados,
+        vasopresoresCompletado: true,
+      },
+      tiemposSubmodulos: {
+        ...(paciente.tiemposSubmodulos || {}),
+        timestampVasopresores: ahoraTs,
+        vasopresoresSegundos: Math.max(1, Math.floor((ahoraTs - refTs) / 1000)),
+      },
+    });
+    setModuloAbierto(null);
+  };
+
+  // HANDLER: Aplicar interpretación del Micrófono IA en Tiempo Real (Solo Checklist 1, Anexo y Nota Clínica)
+  // ESTRICTO: NUNCA modifica Laboratorios, Vasopresores ni Validación de Módulo 1.
+  const handleAplicarInterpretacionVoz = (res: {
+    textoRectificado: string;
+    checklist1Patch?: Partial<FormularioEquipoSepsis>;
+    anexoPatch?: Record<string, any>;
+    notaClinica?: string;
+    camposAplicados: string[];
+  }) => {
+    if (res.checklist1Patch && Object.keys(res.checklist1Patch).length > 0) {
+      dirtyFlagsRef.current.checklist1 = true;
+      setChecklist1Data((prev) => deepMergePlain(prev, res.checklist1Patch));
+    }
+
+    if (res.anexoPatch && Object.keys(res.anexoPatch).length > 0) {
+      dirtyFlagsRef.current.anexo = true;
+      if (categoriaValidada === 3) {
+        setAnexo2Data((prev) => deepMergePlain(prev, res.anexoPatch));
+      } else if (categoriaValidada === 2) {
+        setAnexo3AlertaData((prev) => deepMergePlain(prev, res.anexoPatch));
+      } else {
+        setAnexo4Data((prev) => deepMergePlain(prev, res.anexoPatch));
+      }
+    }
+
+    const nota = (res.notaClinica || "").trim();
+    if (nota) {
+      if (modoFase === "fase2") {
+        dirtyFlagsRef.current.diagnosticoUrgencias = true;
+        setDiagnosticoUrgencias((prev) => {
+          if (!prev.trim()) return nota;
+          if (prev.includes(nota)) return prev;
+          return `${prev.trim()}\n${nota}`;
+        });
+      } else {
+        dirtyFlagsRef.current.diagnosticoDetecto = true;
+        setComentarioGuardadoOk(false);
+        setDiagnosticoDetecto((prev) => {
+          if (!prev.trim()) return nota;
+          if (prev.includes(nota)) return prev;
+          return `${prev.trim()}\n${nota}`;
+        });
+      }
+    }
+  };
+
   // HANDLER: Guardar comentarios de Fase 3 inmediatamente
   const handleGuardarComentarioDetecto = async () => {
     setGuardandoComentario(true);
@@ -555,10 +729,23 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
           className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>{moduloAbierto ? "Volver a los 4 Módulos" : "Volver a la lista de casos"}</span>
+          <span>
+            {moduloAbierto
+              ? `Volver a los ${categoriaValidada === 3 ? 5 : 4} Módulos`
+              : "Volver a la lista de casos"}
+          </span>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMostrarListaCups(true)}
+            className="bg-[#0b4d6c] hover:bg-teal-800 text-white px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+          >
+            <Table2 className="w-4 h-4 text-teal-300" />
+            <span>Lista Labs / CUPS (Copiar / Excel)</span>
+          </button>
+
           {paciente.reportadoADetecto && (
             <span className="text-[11px] font-black bg-purple-100 text-purple-900 px-3 py-1 rounded-full border border-purple-300">
               ✓ Reportado a DETECTO
@@ -672,8 +859,103 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
         </div>
       </div>
 
+      {/* ASISTENTE DE VOZ IA EN TIEMPO REAL (RECTIFICACIÓN MÉDICA Y AUTOLLENADO EN FASE 2 Y 3) */}
+      <MicrofonoIaClinico
+        categoriaValidada={categoriaValidada}
+        modoFase={modoFase}
+        currentChecklist1={checklist1Data}
+        currentAnexo={
+          categoriaValidada === 3
+            ? anexo2Data
+            : categoriaValidada === 2
+            ? anexo3Data
+            : anexo4Data
+        }
+        onAplicarInterpretacion={handleAplicarInterpretacionVoz}
+      />
+
+      {/* RESUMEN DE DATOS DE INGRESO CAPTADOS EN FASE 1 (AUTOLLENADOS EN MÓDULOS) */}
+      {(paciente.edadAnos || paciente.edadMeses || paciente.vitalesIngreso) && (
+        <div className="bg-sky-50/90 border border-sky-300 rounded-2xl px-4 py-3 text-xs flex flex-wrap items-center gap-x-4 gap-y-1.5 text-slate-800 shadow-sm">
+          <span className="font-black text-[#0c2340] uppercase tracking-wide">
+            Signos de Ingreso (Fase 1 · Autollenados):
+          </span>
+          {(paciente.edadAnos || paciente.edadMeses) && (
+            <span>
+              <strong>Edad:</strong> {paciente.edadAnos || "0"}a {paciente.edadMeses || "0"}m
+            </span>
+          )}
+          {paciente.vitalesIngreso?.pesoKg && (
+            <span>
+              <strong>Peso:</strong> {paciente.vitalesIngreso.pesoKg} kg
+            </span>
+          )}
+          {paciente.vitalesIngreso?.pas && (
+            <span>
+              <strong>TA:</strong> {paciente.vitalesIngreso.pas}/{paciente.vitalesIngreso.pad || "—"} (PAM {paciente.vitalesIngreso.pam || "—"})
+            </span>
+          )}
+          {paciente.vitalesIngreso?.temperatura && (
+            <span>
+              <strong>T°:</strong> {paciente.vitalesIngreso.temperatura}°C
+            </span>
+          )}
+          {paciente.vitalesIngreso?.fc && (
+            <span>
+              <strong>FC:</strong> {paciente.vitalesIngreso.fc}
+            </span>
+          )}
+          {paciente.vitalesIngreso?.fr && (
+            <span>
+              <strong>FR:</strong> {paciente.vitalesIngreso.fr}
+            </span>
+          )}
+          {paciente.vitalesIngreso?.satO2 && (
+            <span>
+              <strong>SatO₂:</strong> {paciente.vitalesIngreso.satO2}%
+            </span>
+          )}
+          {paciente.vitalesIngreso?.imc && (
+            <span>
+              <strong>IMC:</strong> {paciente.vitalesIngreso.imc}
+            </span>
+          )}
+          {paciente.vitalesIngreso?.escalaDolor && (
+            <span>
+              <strong>Dolor:</strong> {paciente.vitalesIngreso.escalaDolor}
+            </span>
+          )}
+          {paciente.vitalesIngreso?.neurologico && (
+            <span>
+              <strong>Neurológico:</strong> {paciente.vitalesIngreso.neurologico}
+            </span>
+          )}
+          {paciente.vitalesIngreso?.horaIngreso && (
+            <span className="font-mono font-bold text-sky-900">
+              🕒 Bogotá: {paciente.vitalesIngreso.horaIngreso}
+            </span>
+          )}
+          {categoriaValidada === 3 && (
+            <span
+              className={`ml-auto px-2.5 py-0.5 rounded-full text-[10px] font-black inline-flex items-center gap-1 border ${
+                estados.terapiasCompletado
+                  ? "bg-emerald-100 text-emerald-900 border-emerald-400"
+                  : "bg-cyan-100 text-cyan-950 border-cyan-400"
+              }`}
+            >
+              <Wind className="w-3 h-3" />
+              <span>
+                {estados.terapiasCompletado
+                  ? "TERAPIAS (PaFiO₂/SpFiO₂): ✓ Registrado"
+                  : "TERAPIAS (PaFiO₂/SpFiO₂): Pendiente en Módulo TERAPIAS"}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ======================================================================== */}
-      {/* VISTA PRINCIPAL: LOS 4 BOTONES MODULARES CON SEMÁFORO DE COLORES         */}
+      {/* VISTA PRINCIPAL: BOTONES MODULARES CON SEMÁFORO DE COLORES               */}
       {/* ======================================================================== */}
       {moduloAbierto === null && (
         <div className="space-y-6">
@@ -685,8 +967,8 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
                 {!estados.fase1Validada
                   ? "Paso obligatorio inicial: Ingrese al Botón 1 (AMARILLO) para validar el Triage y desbloquear los demás módulos."
                   : todosVerdes
-                  ? "Todos los 4 módulos han sido completados y guardados en verde (✓)."
-                  : "Diligencie los módulos pendientes (en rojo clarito) hasta completar los 4 en verde."}
+                  ? `Todos los ${categoriaValidada === 3 ? 5 : 4} módulos han sido completados y guardados en verde (✓).`
+                  : `Diligencie los módulos pendientes (en rojo clarito) hasta completar los ${categoriaValidada === 3 ? 5 : 4} en verde.`}
               </span>
             </div>
 
@@ -922,6 +1204,68 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
                 </p>
               </div>
             </button>
+
+            {/* BOTÓN 5 (EXCLUSIVO CATEGORÍA 3): VASOPRESORES POR VENA PERIFÉRICA */}
+            {categoriaValidada === 3 && (
+              <button
+                type="button"
+                disabled={!estados.fase1Validada}
+                onClick={() => estados.fase1Validada && setModuloAbierto("vasopresores")}
+                className={`md:col-span-2 text-left p-5 sm:p-6 rounded-3xl border-2 shadow-lg transition-all flex flex-col justify-between gap-4 ${
+                  !estados.fase1Validada
+                    ? "bg-slate-200 border-slate-300 text-slate-500 cursor-not-allowed opacity-75"
+                    : estados.vasopresoresCompletado
+                    ? "bg-emerald-600 border-emerald-700 text-white cursor-pointer hover:-translate-y-0.5"
+                    : "bg-rose-100 border-rose-400 text-rose-950 hover:bg-rose-200/80 cursor-pointer hover:-translate-y-0.5"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 w-full">
+                  <div
+                    className={`p-3 rounded-2xl ${
+                      !estados.fase1Validada
+                        ? "bg-slate-300 text-slate-500"
+                        : estados.vasopresoresCompletado
+                        ? "bg-emerald-700 text-white"
+                        : "bg-[#c0392b] text-white"
+                    }`}
+                  >
+                    {!estados.fase1Validada ? (
+                      <Lock className="w-7 h-7" />
+                    ) : (
+                      <Syringe className="w-7 h-7" />
+                    )}
+                  </div>
+
+                  <span
+                    className={`text-[11px] font-black uppercase px-3 py-1 rounded-full border ${
+                      !estados.fase1Validada
+                        ? "bg-slate-300 text-slate-600 border-slate-400"
+                        : estados.vasopresoresCompletado
+                        ? "bg-white text-emerald-800 border-emerald-200"
+                        : "bg-white text-rose-800 border-rose-300"
+                    }`}
+                  >
+                    {!estados.fase1Validada
+                      ? "🔒 Bloqueado"
+                      : estados.vasopresoresCompletado
+                      ? "✓ Diligenciado"
+                      : "Pendiente por llenar (Cat 3)"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-black uppercase opacity-80 block">
+                    Módulo 5 · Exclusivo Categoría 3 (Choque Séptico / DOM)
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-black mt-0.5 leading-snug">
+                    VASOPRESORES POR VENA PERIFÉRICA
+                  </h3>
+                  <p className="text-xs font-semibold mt-1.5 opacity-85">
+                    Adrenalina / Noradrenalina · Dilución Método A y Método B (0.3 × peso) · Hidrocortisona (100 mg/m²/día).
+                  </p>
+                </div>
+              </button>
+            )}
           </div>
 
           {/* PANEL DE NOTAS Y BOTONES FINALES DE ACCIÓN */}
@@ -1106,7 +1450,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
 
             {!puedeCerrarCaso && (
               <p className="text-[11px] text-slate-500 font-semibold text-right">
-                ⚠️ Para habilitar <strong>CERRAR CASO</strong> debe completar los 4 módulos en verde
+                ⚠️ Para habilitar <strong>CERRAR CASO</strong> debe completar los {categoriaValidada === 3 ? 5 : 4} módulos en verde
                 {modoFase === "fase3" && " (o usar 'Habilitar Cerrar Caso' con justificación)."}
               </p>
             )}
@@ -1291,13 +1635,25 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
               </div>
             )}
 
+            {errorGuardado && (
+              <div className="bg-red-100 border border-red-400 text-red-900 rounded-xl p-3 text-xs font-bold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{errorGuardado}</span>
+              </div>
+            )}
+
             <button
               type="button"
+              disabled={guardandoModulo}
               onClick={handleValidarFase1}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-black py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <CheckCircle2 className="w-6 h-6" />
-              <span>VALIDAR Y DESBLOQUEAR MÓDULOS</span>
+              <span>
+                {guardandoModulo
+                  ? "VALIDANDO Y DESBLOQUEANDO..."
+                  : "VALIDAR Y DESBLOQUEAR MÓDULOS"}
+              </span>
             </button>
           </div>
         </div>
@@ -1343,6 +1699,7 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
           <FormularioLaboratorios
             data={labsData}
             categoriaValidada={categoriaValidada}
+            onAbrirListaCups={() => setMostrarListaCups(true)}
             onChange={(updated) => {
               dirtyFlagsRef.current.laboratorios = true;
               setLabsData(updated);
@@ -1422,6 +1779,49 @@ export const WorkspaceAtencionCaso: React.FC<WorkspaceAtencionCasoProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* ======================================================================== */}
+      {/* SUBMÓDULO 5 (EXCLUSIVO CATEGORÍA 3): VASOPRESORES POR VENA PERIFÉRICA    */}
+      {/* ======================================================================== */}
+      {moduloAbierto === "vasopresores" && categoriaValidada === 3 && (
+        <div className="space-y-4">
+          <FormularioVasopresores
+            data={vasopresoresData}
+            pesoIngresoDefault={paciente.vitalesIngreso?.pesoKg || ""}
+            horaIngresoDefault={paciente.vitalesIngreso?.horaIngreso || ""}
+            onChange={(updated) => {
+              dirtyFlagsRef.current.vasopresores = true;
+              setVasopresoresData(updated);
+            }}
+          />
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setModuloAbierto(null)}
+              className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-5 py-3 rounded-xl text-xs cursor-pointer"
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              onClick={handleGuardarVasopresores}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3 rounded-xl text-sm flex items-center gap-2 shadow-lg cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              <span>Guardar Vasopresores por Vena Periférica (Marcar Verde)</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL LISTA DE LABORATORIOS Y EXÁMENES CON COLUMNA CUPS */}
+      {mostrarListaCups && (
+        <ModalListaLaboratoriosCups
+          pacientes={[paciente]}
+          pacienteInicialId={paciente.id}
+          onCerrar={() => setMostrarListaCups(false)}
+        />
       )}
     </div>
   );

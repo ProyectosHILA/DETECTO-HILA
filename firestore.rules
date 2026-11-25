@@ -18,22 +18,6 @@ service cloud.firestore {
       return resource.data;
     }
 
-    function isOptString(data, field, maxLen) {
-      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
-    }
-
-    function isOptBool(data, field) {
-      return !(field in data) || data[field] is bool;
-    }
-
-    function isOptNumber(data, field) {
-      return !(field in data) || (data[field] is int || data[field] is float);
-    }
-
-    function isOptMap(data, field) {
-      return !(field in data) || data[field] is map;
-    }
-
     function isValidPaciente(data, pacienteId) {
       let requiredKeys = [
         'id', 'codigo', 'identificacionPaciente', 'fechaCreacion',
@@ -43,7 +27,8 @@ service cloud.firestore {
         'tiempoFase3Segundos', 'tiempoTotalSegundos', 'timestampInicio'
       ];
       let allowedKeys = [
-        'id', 'codigo', 'identificacionPaciente', 'nombre', 'apellido', 'fechaCreacion',
+        'id', 'codigo', 'identificacionPaciente', 'nombre', 'apellido', 'edadAnos', 'edadMeses',
+        'vitalesIngreso', 'fechaCreacion',
         'faseActual', 'estado', 'fase1Completada', 'fase2Completada', 'fase3Completada',
         'criteriosTamizaje', 'puntajeTamizaje', 'categoriaTriage', 'categoriaTriageLabel',
         'diagnosticoTriage', 'autorTriage', 'diagnosticoUrgencias', 'aplicaSepsis',
@@ -54,7 +39,7 @@ service cloud.firestore {
         'categoriaTriageValidada', 'categoriaTriageValidadaLabel', 'motivoCambioCategoria',
         'reportadoADetecto', 'habilitadoCierreAnticipado', 'motivoCierreAnticipado',
         'estadosModulos', 'tiemposSubmodulos', 'formularioEquipoSepsis',
-        'laboratorios', 'anexo2Data', 'anexo3Data', 'anexo4Data',
+        'laboratorios', 'anexo2Data', 'anexo3Data', 'anexo4Data', 'vasopresoresData',
         'enPapelera', 'fechaEliminacion'
       ];
 
@@ -81,34 +66,38 @@ service cloud.firestore {
         (data.tiempoFase3Segundos is int || data.tiempoFase3Segundos is float) && data.tiempoFase3Segundos >= 0 &&
         (data.tiempoTotalSegundos is int || data.tiempoTotalSegundos is float) && data.tiempoTotalSegundos >= 0 &&
         (data.timestampInicio is int || data.timestampInicio is float) &&
-        isOptString(data, 'nombre', 200) &&
-        isOptString(data, 'apellido', 200) &&
-        isOptString(data, 'autorTriage', 200) &&
-        isOptString(data, 'diagnosticoUrgencias', 4000) &&
-        isOptBool(data, 'aplicaSepsis') &&
-        isOptBool(data, 'aprobadoUrgencias') &&
-        isOptString(data, 'motivoDescarte', 2000) &&
-        isOptString(data, 'autorUrgencias', 200) &&
-        isOptString(data, 'diagnosticoDetecto', 4000) &&
-        isOptString(data, 'autorDetecto', 200) &&
-        isOptNumber(data, 'timestampPasoFase2') &&
-        isOptNumber(data, 'timestampPasoFase3') &&
-        isOptNumber(data, 'timestampFinalizado') &&
+        (!('nombre' in data) || (data.nombre is string && data.nombre.size() <= 200)) &&
+        (!('apellido' in data) || (data.apellido is string && data.apellido.size() <= 200)) &&
+        (!('edadAnos' in data) || (data.edadAnos is string && data.edadAnos.size() <= 32)) &&
+        (!('edadMeses' in data) || (data.edadMeses is string && data.edadMeses.size() <= 32)) &&
+        (!('vitalesIngreso' in data) || data.vitalesIngreso is map) &&
+        (!('autorTriage' in data) || (data.autorTriage is string && data.autorTriage.size() <= 200)) &&
+        (!('diagnosticoUrgencias' in data) || (data.diagnosticoUrgencias is string && data.diagnosticoUrgencias.size() <= 4000)) &&
+        (!('aplicaSepsis' in data) || data.aplicaSepsis is bool) &&
+        (!('aprobadoUrgencias' in data) || data.aprobadoUrgencias is bool) &&
+        (!('motivoDescarte' in data) || (data.motivoDescarte is string && data.motivoDescarte.size() <= 2000)) &&
+        (!('autorUrgencias' in data) || (data.autorUrgencias is string && data.autorUrgencias.size() <= 200)) &&
+        (!('diagnosticoDetecto' in data) || (data.diagnosticoDetecto is string && data.diagnosticoDetecto.size() <= 4000)) &&
+        (!('autorDetecto' in data) || (data.autorDetecto is string && data.autorDetecto.size() <= 200)) &&
+        (!('timestampPasoFase2' in data) || (data.timestampPasoFase2 is int || data.timestampPasoFase2 is float)) &&
+        (!('timestampPasoFase3' in data) || (data.timestampPasoFase3 is int || data.timestampPasoFase3 is float)) &&
+        (!('timestampFinalizado' in data) || (data.timestampFinalizado is int || data.timestampFinalizado is float)) &&
         (!('categoriaTriageValidada' in data) || data.categoriaTriageValidada in [1, 2, 3]) &&
-        isOptString(data, 'categoriaTriageValidadaLabel', 200) &&
-        isOptString(data, 'motivoCambioCategoria', 2000) &&
-        isOptBool(data, 'reportadoADetecto') &&
-        isOptBool(data, 'habilitadoCierreAnticipado') &&
-        isOptString(data, 'motivoCierreAnticipado', 2000) &&
-        isOptMap(data, 'estadosModulos') &&
-        isOptMap(data, 'tiemposSubmodulos') &&
-        isOptMap(data, 'formularioEquipoSepsis') &&
-        isOptMap(data, 'laboratorios') &&
-        isOptMap(data, 'anexo2Data') &&
-        isOptMap(data, 'anexo3Data') &&
-        isOptMap(data, 'anexo4Data') &&
-        isOptBool(data, 'enPapelera') &&
-        isOptNumber(data, 'fechaEliminacion');
+        (!('categoriaTriageValidadaLabel' in data) || (data.categoriaTriageValidadaLabel is string && data.categoriaTriageValidadaLabel.size() <= 200)) &&
+        (!('motivoCambioCategoria' in data) || (data.motivoCambioCategoria is string && data.motivoCambioCategoria.size() <= 2000)) &&
+        (!('reportadoADetecto' in data) || data.reportadoADetecto is bool) &&
+        (!('habilitadoCierreAnticipado' in data) || data.habilitadoCierreAnticipado is bool) &&
+        (!('motivoCierreAnticipado' in data) || (data.motivoCierreAnticipado is string && data.motivoCierreAnticipado.size() <= 2000)) &&
+        (!('estadosModulos' in data) || data.estadosModulos is map) &&
+        (!('tiemposSubmodulos' in data) || data.tiemposSubmodulos is map) &&
+        (!('formularioEquipoSepsis' in data) || data.formularioEquipoSepsis is map) &&
+        (!('laboratorios' in data) || data.laboratorios is map) &&
+        (!('anexo2Data' in data) || data.anexo2Data is map) &&
+        (!('anexo3Data' in data) || data.anexo3Data is map) &&
+        (!('anexo4Data' in data) || data.anexo4Data is map) &&
+        (!('vasopresoresData' in data) || data.vasopresoresData is map) &&
+        (!('enPapelera' in data) || data.enPapelera is bool) &&
+        (!('fechaEliminacion' in data) || (data.fechaEliminacion is int || data.fechaEliminacion is float));
     }
 
     match /pacientes/{pacienteId} {
@@ -123,7 +112,7 @@ service cloud.firestore {
         incoming().codigo == existing().codigo &&
         incoming().fechaCreacion == existing().fechaCreacion &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'identificacionPaciente', 'nombre', 'apellido',
+          'identificacionPaciente', 'nombre', 'apellido', 'edadAnos', 'edadMeses', 'vitalesIngreso',
           'faseActual', 'estado', 'fase1Completada', 'fase2Completada', 'fase3Completada',
           'criteriosTamizaje', 'puntajeTamizaje', 'categoriaTriage', 'categoriaTriageLabel',
           'diagnosticoTriage', 'autorTriage', 'diagnosticoUrgencias', 'aplicaSepsis',
@@ -134,7 +123,7 @@ service cloud.firestore {
           'categoriaTriageValidada', 'categoriaTriageValidadaLabel', 'motivoCambioCategoria',
           'reportadoADetecto', 'habilitadoCierreAnticipado', 'motivoCierreAnticipado',
           'estadosModulos', 'tiemposSubmodulos', 'formularioEquipoSepsis',
-          'laboratorios', 'anexo2Data', 'anexo3Data', 'anexo4Data',
+          'laboratorios', 'anexo2Data', 'anexo3Data', 'anexo4Data', 'vasopresoresData',
           'enPapelera', 'fechaEliminacion'
         ]);
 

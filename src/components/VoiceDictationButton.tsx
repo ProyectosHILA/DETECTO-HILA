@@ -74,9 +74,11 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
     };
   }, [valorActual, onTranscript]);
 
-  const toggleEscucha = () => {
+  const toggleEscucha = async () => {
     if (!recognitionRef.current) {
-      alert("El reconocimiento de voz requiere permisos de micrófono o Chrome/Edge/Safari moderno.");
+      setErrorSoporte(
+        "El reconocimiento de voz requiere permisos de micrófono o Chrome/Edge/Safari."
+      );
       return;
     }
 
@@ -90,10 +92,19 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
     } else {
       setErrorSoporte(null);
       try {
+        if (navigator.mediaDevices?.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach((t) => t.stop());
+        }
         recognitionRef.current.start();
         setEscuchando(true);
-      } catch (err) {
-        console.error("No se pudo iniciar reconocimiento:", err);
+      } catch (err: any) {
+        const name = String(err?.name || "");
+        if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+          setErrorSoporte("Permiso de micrófono denegado en el navegador.");
+        } else {
+          setErrorSoporte("No se pudo iniciar el dictado por voz.");
+        }
       }
     }
   };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { RolUsuario, PacienteRegistro } from "../types";
 import { DetectoLogo } from "./DetectoLogo";
+import { VisorPdfGuiaDetecto } from "./VisorPdfGuiaDetecto";
 import {
   Stethoscope,
   HeartPulse,
@@ -16,6 +17,10 @@ import {
   Activity,
   Zap,
   FlaskConical,
+  Wind,
+  BookOpen,
+  Download,
+  X,
 } from "lucide-react";
 
 interface PantallaInicialTarjetasProps {
@@ -30,6 +35,7 @@ interface PantallaInicialTarjetasProps {
     urgencias: { cantidad: number; items: any[] };
     detecto: { cantidad: number; items: any[] };
     laboratorios?: { cantidad: number; items: any[] };
+    terapias?: { cantidad: number; items: any[] };
   };
   pacientes: PacienteRegistro[];
 }
@@ -45,6 +51,7 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
   const [userInput, setUserInput] = useState<string>("");
   const [passwordInput, setPasswordInput] = useState<string>("");
   const [errorAuth, setErrorAuth] = useState<string | null>(null);
+  const [mostrarGuiaPdf, setMostrarGuiaPdf] = useState<boolean>(false);
 
   // Live timer for active patient alerts (ticks every second)
   const [ahora, setAhora] = useState<number>(Date.now());
@@ -89,6 +96,8 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
         setUserInput("LDetecto1");
       } else if (rol === "laboratorio") {
         setUserInput("Laboratorio1");
+      } else if (rol === "terapias") {
+        setUserInput("Terapias1");
       } else if (rol === "super_usuario") {
         setUserInput("AdminDet1");
       }
@@ -150,6 +159,16 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
       } else {
         setErrorAuth("Usuario o clave incorrecta. (Usuario: Laboratorio1 | Clave: salvavidas4)");
       }
+    } else if (modalRol === "terapias") {
+      if (
+        (u === "Terapias1" && p === "salvavidas5") ||
+        (u === "AdminDet1" && p === "Detecto159*")
+      ) {
+        onLoginCredenciales("terapias", u, "Terapia Respiratoria · TERAPIAS", "modulo");
+        setModalRol(null);
+      } else {
+        setErrorAuth("Usuario o clave incorrecta. (Usuario: Terapias1 | Clave: salvavidas5)");
+      }
     } else if (modalRol === "super_usuario") {
       if (u === "AdminDet1" && p === "Detecto159*") {
         onLoginCredenciales("super_usuario", "AdminDet1", "Super Administrador DETECTO", "base_datos");
@@ -180,6 +199,28 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
         <p className="text-xs text-slate-500 font-medium">
           Hospital Infantil Los Ángeles (HILA) · Protocolo Institucional de Alerta Temprana
         </p>
+
+        {/* BOTÓN ELEGANTE: CONSULTA LA GUÍA DETECTO */}
+        <div className="pt-1 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setMostrarGuiaPdf(true)}
+            className="group relative inline-flex items-center gap-3 bg-gradient-to-r from-[#0c2340] via-[#0b4d6c] to-[#0c2340] hover:brightness-110 text-white px-5 py-2.5 rounded-2xl border border-[#cfa32d]/60 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 cursor-pointer"
+          >
+            <span className="p-1.5 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#9b7414] text-slate-950 shadow-sm group-hover:scale-105 transition-transform">
+              <BookOpen className="w-4 h-4" />
+            </span>
+            <span className="text-left">
+              <span className="text-xs font-black tracking-wider uppercase block leading-tight text-amber-200">
+                CONSULTA LA GUÍA DETECTO
+              </span>
+              <span className="text-[10px] font-semibold text-sky-100 block leading-tight">
+                Guía de Bolsillo v1 · Protocolo Clínico PDF
+              </span>
+            </span>
+            <ArrowRight className="w-4 h-4 text-amber-300 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
       </div>
 
       {/* ALERTA GENERAL DE PACIENTES ACTIVOS EN CURSO (CON CRONÓMETRO ACUMULADO EN VIVO) */}
@@ -477,10 +518,10 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
         </div>
       </div>
 
-      {/* FILA DE ACCESO SECUNDARIO: CENTRO DE CONTROL DE CASOS + MÓDULO EXTERNO DE LABORATORIOS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+      {/* FILA DE ACCESO SECUNDARIO: CENTRO DE CONTROL + LABORATORIOS + TERAPIAS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
         {/* CENTRO DE CONTROL DE CASOS (2 columnas en desktop) */}
-        <div className="lg:col-span-2 bg-white border-2 border-slate-300 hover:border-slate-400 rounded-3xl p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
+        <div className="md:col-span-2 bg-white border-2 border-slate-300 hover:border-slate-400 rounded-3xl p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="p-3 bg-[#0f2b5c] text-white rounded-2xl shadow-md">
               <KeyRound className="w-6 h-6 text-amber-400" />
@@ -546,9 +587,52 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
             </span>
           </div>
         </div>
+
+        {/* MÓDULO EXTERNO COMPACTO: TERAPIAS (SOLO CATEGORÍA 3 CHOQUE SÉPTICO) */}
+        <div
+          onClick={() => handleAbrirLogin("terapias")}
+          className="group bg-[#083344] border-2 border-cyan-500/60 hover:border-cyan-300 rounded-3xl p-4 sm:p-5 text-white shadow-xl cursor-pointer transition-all hover:-translate-y-0.5 flex flex-col justify-between gap-3"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 bg-cyan-400 text-slate-950 rounded-xl shadow-md group-hover:scale-105 transition-transform">
+                <Wind className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white leading-tight">
+                  TERAPIAS
+                </h3>
+                <span className="text-[11px] font-bold text-cyan-200 block">
+                  PaFiO₂ / SpFiO₂ (Solo Cat 3)
+                </span>
+              </div>
+            </div>
+
+            {(alertas.terapias?.cantidad || 0) > 0 ? (
+              <span className="animate-pulse text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-red-600 text-white shadow flex items-center gap-1 border border-red-400 shrink-0">
+                <AlertTriangle className="w-3 h-3 text-white animate-bounce" />
+                <span>{alertas.terapias?.cantidad} Cat 3</span>
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-cyan-400/20 text-cyan-100 border border-cyan-400/40 shrink-0">
+                Solo Cat 3
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-cyan-400/25">
+            <span className="text-[10px] text-cyan-200 font-semibold">
+              Usuario: Terapias1
+            </span>
+            <span className="bg-cyan-400 group-hover:bg-cyan-300 text-slate-950 font-black px-3 py-1.5 rounded-xl text-[11px] flex items-center gap-1 shadow transition-colors">
+              <span>Ingresar</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* MODAL DE CREDENCIALES PARA FASE 2, FASE 3, LABORATORIOS O CENTRO DE CONTROL DE CASOS */}
+      {/* MODAL DE CREDENCIALES PARA FASE 2, FASE 3, LABORATORIOS, TERAPIAS O CENTRO DE CONTROL */}
       {modalRol && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-4 shadow-2xl border border-slate-200">
@@ -563,6 +647,7 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
                     {!destinoBaseDatos && modalRol === "medico_urgencias" && "Fase 2: Equipo de Sepsis"}
                     {!destinoBaseDatos && modalRol === "grupo_detecto" && "Fase 3: Equipo DETECTO"}
                     {!destinoBaseDatos && modalRol === "laboratorio" && "Módulo de Laboratorios"}
+                    {!destinoBaseDatos && modalRol === "terapias" && "Módulo TERAPIAS (Solo Categoría 3)"}
                     {!destinoBaseDatos && modalRol === "super_usuario" && "Super Usuario / Administrador"}
                   </h3>
                   <span className="text-xs text-slate-500">
@@ -656,11 +741,60 @@ export const PantallaInicialTarjetas: React.FC<PantallaInicialTarjetasProps> = (
                   {modalRol === "laboratorio" && (
                     <span>Usuario: <strong>Laboratorio1</strong> · Clave: <strong>salvavidas4</strong></span>
                   )}
+                  {modalRol === "terapias" && (
+                    <span>Usuario: <strong>Terapias1</strong> · Clave: <strong>salvavidas5</strong></span>
+                  )}
                   {modalRol === "super_usuario" && (
                     <span>Usuario: <strong>AdminDet1</strong> · Clave: <strong>Detecto159*</strong></span>
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL VISOR PDF: CONSULTA LA GUÍA DETECTO */}
+      {mostrarGuiaPdf && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-5">
+          <div className="bg-white border-2 border-[#0c2340] rounded-3xl max-w-5xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="bg-[#0c2340] text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-[#d4af37] to-[#9b7414] text-slate-950 rounded-xl shadow">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black uppercase tracking-wide text-amber-200">
+                    Guía de Bolsillo DETECTO v1 · Protocolo Institucional
+                  </h3>
+                  <span className="text-[11px] text-sky-200 block">
+                    Hospital Infantil Los Ángeles (HILA) · Consulta Clínica Directa
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="/assets/aistudio/DETECTO_Guia_Bolsillo_v1_9026153f.pdf"
+                  download="DETECTO_Guia_Bolsillo_v1.pdf"
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Descargar PDF</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setMostrarGuiaPdf(false)}
+                  className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Cerrar</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-900 overflow-hidden">
+              <VisorPdfGuiaDetecto url="/assets/aistudio/DETECTO_Guia_Bolsillo_v1_9026153f.pdf" />
             </div>
           </div>
         </div>

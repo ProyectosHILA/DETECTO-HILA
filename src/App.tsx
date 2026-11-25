@@ -3,6 +3,7 @@ import {
   UsuarioSesion,
   PacienteRegistro,
   RolUsuario,
+  VitalesIngresoData,
 } from "./types";
 import { Header } from "./components/Header";
 import { EcgBackground } from "./components/EcgBackground";
@@ -11,8 +12,10 @@ import { Fase1Triage } from "./components/Fase1Triage";
 import { ModuloUrgencias } from "./components/ModuloUrgencias";
 import { ModuloDetecto } from "./components/ModuloDetecto";
 import { ModuloLaboratorios } from "./components/ModuloLaboratorios";
+import { ModuloTerapias } from "./components/ModuloTerapias";
 import { BaseDatosPacientes } from "./components/BaseDatosPacientes";
 import { ModalEditarPaciente } from "./components/ModalEditarPaciente";
+import { ModalListaLaboratoriosCups } from "./components/ModalListaLaboratoriosCups";
 import { BannerConteoRegresivoCentral } from "./components/BannerConteoRegresivoCentral";
 import { audioAlert } from "./utils/audioAlert";
 import {
@@ -31,8 +34,11 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState<UsuarioSesion | null>(null);
 
   // Active view for authenticated user
-  const [vistaActiva, setVistaActiva] = useState<"fase1" | "fase2" | "fase3" | "laboratorios" | "base_datos">("fase1");
+  const [vistaActiva, setVistaActiva] = useState<
+    "fase1" | "fase2" | "fase3" | "laboratorios" | "terapias" | "base_datos"
+  >("fase1");
   const [pacienteSeleccionadoId, setPacienteSeleccionadoId] = useState<string | null>(null);
+  const [mostrarListaLabsCups, setMostrarListaLabsCups] = useState<boolean>(false);
 
   // Patients Database & Sync
   const [pacientes, setPacientes] = useState<PacienteRegistro[]>([]);
@@ -41,10 +47,12 @@ export default function App() {
     urgencias: { cantidad: number; items: any[] };
     detecto: { cantidad: number; items: any[] };
     laboratorios: { cantidad: number; items: any[] };
+    terapias: { cantidad: number; items: any[] };
   }>({
     urgencias: { cantidad: 0, items: [] },
     detecto: { cantidad: 0, items: [] },
     laboratorios: { cantidad: 0, items: [] },
+    terapias: { cantidad: 0, items: [] },
   });
 
   // Track previous pending cases count for Fase 3 ringtone trigger
@@ -123,6 +131,8 @@ export default function App() {
       setVistaActiva("fase3");
     } else if (rol === "laboratorio") {
       setVistaActiva("laboratorios");
+    } else if (rol === "terapias") {
+      setVistaActiva("terapias");
     } else if (rol === "super_usuario") {
       setVistaActiva("base_datos");
     } else {
@@ -134,13 +144,17 @@ export default function App() {
     setUsuarioActual(null);
     setVistaActiva("fase1");
     setPacienteSeleccionadoId(null);
+    setMostrarListaLabsCups(false);
     setTriageGuardadoExito(false);
   };
 
-  // Submit Phase 1 (Triage)
+  // Submit Phase 1 (Triage) with automatic prefill for downstream modules
   const handlePasoFase1AFase2 = async (datos: {
     identificacionPaciente: string;
     nombre: string;
+    edadAnos: string;
+    edadMeses: string;
+    vitalesIngreso: VitalesIngresoData;
     criteriosTamizaje: boolean[];
     puntajeTamizaje: number;
     categoriaTriage: 1 | 2 | 3;
@@ -149,10 +163,26 @@ export default function App() {
     tiempoFase1Segundos: number;
   }) => {
     try {
+      const v = datos.vitalesIngreso || {};
+      const nombreAnexo = datos.nombre
+        ? `${datos.nombre} (ID: ${datos.identificacionPaciente})`
+        : datos.identificacionPaciente;
+
+      const anexoBasePrefill = {
+        pacienteNombre: nombreAnexo,
+        edadAnos: datos.edadAnos || "",
+        edadMeses: datos.edadMeses || "",
+        pesoKg: v.pesoKg || "",
+        horaInicio: v.horaIngreso || "",
+      };
+
       const nuevoPayload = {
         identificacionPaciente: datos.identificacionPaciente,
         nombre: datos.nombre,
         apellido: "",
+        edadAnos: datos.edadAnos || "",
+        edadMeses: datos.edadMeses || "",
+        vitalesIngreso: v,
         criteriosTamizaje: datos.criteriosTamizaje,
         puntajeTamizaje: datos.puntajeTamizaje,
         categoriaTriage: datos.categoriaTriage,
@@ -171,6 +201,27 @@ export default function App() {
           checklist1Completado: false,
           laboratoriosCompletado: false,
           anexoCompletado: false,
+          vasopresoresCompletado: false,
+          terapiasCompletado: false,
+        },
+        formularioEquipoSepsis: {
+          signosVitales: {
+            temperatura: v.temperatura || "",
+            fc: v.fc || "",
+            fr: v.fr || "",
+            pas: v.pas || "",
+            pam: v.pam || "",
+            satO2: v.satO2 || "",
+          },
+          horaInicio: v.horaIngreso || "",
+        },
+        anexo2Data: { ...anexoBasePrefill },
+        anexo3Data: { ...anexoBasePrefill },
+        anexo4Data: { ...anexoBasePrefill },
+        vasopresoresData: {
+          pesoKg: v.pesoKg || "",
+          horaInicio: v.horaIngreso || "",
+          viaAcceso: "vena_periferica" as const,
         },
         tiempoFase1Segundos: datos.tiempoFase1Segundos,
         tiempoFase2Segundos: 0,
@@ -201,6 +252,7 @@ export default function App() {
       await actualizarPacienteFirestore(id, patch);
     } catch (err) {
       console.error("Error actualizando paciente:", err);
+      throw err;
     }
   };
 
@@ -367,6 +419,11 @@ export default function App() {
       !p.estadosModulos?.laboratoriosCompletado
   );
 
+  // Cases in Categoría 3 (ALERTA CHOQUE SÉPTICO / DOM) for TERAPIAS module
+  const pacientesActivosCat3 = pacientesActivos.filter(
+    (p) => (p.categoriaTriageValidada || p.categoriaTriage) === 3
+  );
+
   const pacientesCerrados = pacientes.filter(
     (p) => p.fase3Completada || p.estado === "completado"
   );
@@ -381,6 +438,9 @@ export default function App() {
         {/* Top Header bar */}
         <Header
           onCerrarSesion={usuarioActual ? handleCerrarSesion : undefined}
+          onAbrirListaLaboratorios={
+            usuarioActual ? () => setMostrarListaLabsCups(true) : undefined
+          }
           usuarioActual={usuarioActual}
         />
 
@@ -529,6 +589,15 @@ export default function App() {
                   />
                 )}
 
+                {/* C3. VISTA MÓDULO EXTERNO: TERAPIAS (SOLO CATEGORÍA 3 CHOQUE SÉPTICO) */}
+                {vistaActiva === "terapias" && (
+                  <ModuloTerapias
+                    pacientesActivosCat3={pacientesActivosCat3}
+                    onActualizarPaciente={handleActualizarPaciente}
+                    onVolverAlInicio={handleCerrarSesion}
+                  />
+                )}
+
                 {/* D. VISTA BASE DE DATOS */}
                 {vistaActiva === "base_datos" && (
                   <div className="max-w-6xl mx-auto space-y-4">
@@ -570,6 +639,15 @@ export default function App() {
             )}
           </div>
         </main>
+
+        {/* Modal Lista de Laboratorios y Exámenes con columna CUPS (accesible desde cualquier perfil) */}
+        {mostrarListaLabsCups && (
+          <ModalListaLaboratoriosCups
+            pacientes={pacientes}
+            pacienteInicialId={pacienteSeleccionadoId}
+            onCerrar={() => setMostrarListaLabsCups(false)}
+          />
+        )}
 
         {/* Modal for Super User to Edit Patient Record */}
         {pacienteParaEditar && (

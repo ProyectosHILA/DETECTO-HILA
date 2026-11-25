@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { PacienteRegistro } from "../types";
 import { WorkspaceAtencionCaso } from "./WorkspaceAtencionCaso";
+import { ModalListaLaboratoriosCups } from "./ModalListaLaboratoriosCups";
 import {
   HeartPulse,
   Clock,
@@ -8,6 +9,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Inbox,
+  Table2,
 } from "lucide-react";
 
 interface ModuloUrgenciasProps {
@@ -37,6 +39,7 @@ export const ModuloUrgencias: React.FC<ModuloUrgenciasProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(
     pacientesActivos.length === 1 ? pacientesActivos[0].id : null
   );
+  const [mostrarListaCups, setMostrarListaCups] = useState<boolean>(false);
 
   const pacienteSeleccionado =
     pacientesActivos.find((p) => p.id === selectedId) || null;
@@ -83,9 +86,19 @@ export const ModuloUrgencias: React.FC<ModuloUrgenciasProps> = ({
           ← Salir al inicio
         </button>
 
-        <span className="text-xs font-black uppercase bg-amber-100 text-amber-950 px-3 py-1 rounded-full border border-amber-400">
-          Servicio de Urgencias · Equipo de Sepsis
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMostrarListaCups(true)}
+            className="bg-[#0b4d6c] hover:bg-teal-800 text-white px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+          >
+            <Table2 className="w-4 h-4 text-teal-300" />
+            <span>Lista Labs / CUPS (Copiar / Excel)</span>
+          </button>
+          <span className="text-xs font-black uppercase bg-amber-100 text-amber-950 px-3 py-1 rounded-full border border-amber-400">
+            Servicio de Urgencias · Equipo de Sepsis
+          </span>
+        </div>
       </div>
 
       {/* Main Banner */}
@@ -237,6 +250,14 @@ export const ModuloUrgencias: React.FC<ModuloUrgenciasProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {mostrarListaCups && (
+        <ModalListaLaboratoriosCups
+          pacientes={[...pacientesActivos, ...pacientesCerrados]}
+          pacienteInicialId={selectedId}
+          onCerrar={() => setMostrarListaCups(false)}
+        />
       )}
     </div>
   );

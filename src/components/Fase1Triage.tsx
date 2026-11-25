@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { PacienteRegistro, CRITERIOS_TAMIZAJE_SEPSIS } from "../types";
+import React, { useState, useEffect, useRef } from "react";
+import { PacienteRegistro, CRITERIOS_TAMIZAJE_SEPSIS, VitalesIngresoData } from "../types";
 import { VoiceDictationButton } from "./VoiceDictationButton";
 import {
   Clock,
@@ -9,9 +9,9 @@ import {
   AlertTriangle,
   Zap,
   Check,
-  CheckCircle2,
   Activity,
-  ShieldAlert,
+  HeartPulse,
+  CalendarClock,
 } from "lucide-react";
 
 interface Fase1TriageProps {
@@ -19,6 +19,9 @@ interface Fase1TriageProps {
   onGuardarYPasaAFase2: (datos: {
     identificacionPaciente: string;
     nombre: string;
+    edadAnos: string;
+    edadMeses: string;
+    vitalesIngreso: VitalesIngresoData;
     criteriosTamizaje: boolean[];
     puntajeTamizaje: number;
     categoriaTriage: 1 | 2 | 3;
@@ -41,6 +44,81 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
     pacienteEnEdicion.nombre || ""
   );
 
+  const [edadAnos, setEdadAnos] = useState<string>(pacienteEnEdicion.edadAnos || "");
+  const [edadMeses, setEdadMeses] = useState<string>(pacienteEnEdicion.edadMeses || "");
+
+  const obtenerHoraBogota = (date: Date = new Date()) => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/Bogota",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(date);
+      const hh = parts.find((p) => p.type === "hour")?.value || "00";
+      const mm = parts.find((p) => p.type === "minute")?.value || "00";
+      return `${hh}:${mm}`;
+    } catch {
+      const hh = date.getHours().toString().padStart(2, "0");
+      const mm = date.getMinutes().toString().padStart(2, "0");
+      return `${hh}:${mm}`;
+    }
+  };
+
+  const obtenerRelojBogotaCompleto = (date: Date = new Date()) => {
+    try {
+      return new Intl.DateTimeFormat("es-CO", {
+        timeZone: "America/Bogota",
+        dateStyle: "short",
+        timeStyle: "medium",
+        hour12: false,
+      }).format(date);
+    } catch {
+      return date.toLocaleString("es-CO");
+    }
+  };
+
+  const [relojBogotaTexto, setRelojBogotaTexto] = useState<string>(() =>
+    obtenerRelojBogotaCompleto()
+  );
+  const horaEditadaManualRef = useRef<boolean>(false);
+  const pamEditadaManualRef = useRef<boolean>(Boolean(pacienteEnEdicion.vitalesIngreso?.pam));
+
+  const [vitalesIngreso, setVitalesIngreso] = useState<VitalesIngresoData>(() => ({
+    pas: pacienteEnEdicion.vitalesIngreso?.pas || "",
+    pad: pacienteEnEdicion.vitalesIngreso?.pad || "",
+    pam: pacienteEnEdicion.vitalesIngreso?.pam || "",
+    temperatura: pacienteEnEdicion.vitalesIngreso?.temperatura || "",
+    fc: pacienteEnEdicion.vitalesIngreso?.fc || "",
+    fr: pacienteEnEdicion.vitalesIngreso?.fr || "",
+    satO2: pacienteEnEdicion.vitalesIngreso?.satO2 || "",
+    pesoKg: pacienteEnEdicion.vitalesIngreso?.pesoKg || "",
+    imc: pacienteEnEdicion.vitalesIngreso?.imc || "",
+    escalaDolor: pacienteEnEdicion.vitalesIngreso?.escalaDolor || "",
+    neurologico: pacienteEnEdicion.vitalesIngreso?.neurologico || "",
+    horaIngreso: pacienteEnEdicion.vitalesIngreso?.horaIngreso || obtenerHoraBogota(),
+  }));
+
+  const updateVital = (field: keyof VitalesIngresoData, val: string) => {
+    if (field === "horaIngreso") {
+      horaEditadaManualRef.current = true;
+    }
+    if (field === "pam") {
+      pamEditadaManualRef.current = val.trim().length > 0;
+    }
+    setVitalesIngreso((prev) => {
+      const next: VitalesIngresoData = { ...prev, [field]: val };
+      if ((field === "pas" || field === "pad") && !pamEditadaManualRef.current) {
+        const s = parseFloat((field === "pas" ? val : prev.pas || "").replace(",", "."));
+        const d = parseFloat((field === "pad" ? val : prev.pad || "").replace(",", "."));
+        if (!isNaN(s) && !isNaN(d) && s > 0 && d > 0) {
+          next.pam = String(Math.round((s + 2 * d) / 3));
+        }
+      }
+      return next;
+    });
+  };
+
   // 8 criteria checklist: true / false for each
   const [criterios, setCriterios] = useState<boolean[]>(() => {
     if (pacienteEnEdicion.criteriosTamizaje && pacienteEnEdicion.criteriosTamizaje.length === 8) {
@@ -53,14 +131,22 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
     pacienteEnEdicion.diagnosticoTriage || ""
   );
 
-  // Big visible timer that starts as soon as we enter Phase 1
+  // Big visible timer that starts as soon as we enter Phase 1 + live Bogotá Colombia clock
   const [segundosTranscurridos, setSegundosTranscurridos] = useState<number>(
     pacienteEnEdicion.tiempoFase1Segundos || 0
   );
 
   useEffect(() => {
     const timer = setInterval(() => {
+      const now = new Date();
       setSegundosTranscurridos((prev) => prev + 1);
+      setRelojBogotaTexto(obtenerRelojBogotaCompleto(now));
+      if (!horaEditadaManualRef.current) {
+        const bogotaHHmm = obtenerHoraBogota(now);
+        setVitalesIngreso((prev) =>
+          prev.horaIngreso === bogotaHHmm ? prev : { ...prev, horaIngreso: bogotaHHmm }
+        );
+      }
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -116,6 +202,12 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
     onGuardarYPasaAFase2({
       identificacionPaciente: identificacion.trim(),
       nombre: nombrePaciente.trim(),
+      edadAnos: edadAnos.trim(),
+      edadMeses: edadMeses.trim(),
+      vitalesIngreso: {
+        ...vitalesIngreso,
+        horaIngreso: vitalesIngreso.horaIngreso || obtenerHoraBogota(),
+      },
       criteriosTamizaje: criterios,
       puntajeTamizaje: sumatoriaPuntos,
       categoriaTriage: categoria,
@@ -289,6 +381,233 @@ export const Fase1Triage: React.FC<Fase1TriageProps> = ({
             <span className="text-[11px] font-bold text-sky-800 block mt-1.5">
               ℹ️ No es obligatorio nombre completo (ayuda a identificar rápidamente el caso).
             </span>
+          </div>
+        </div>
+
+        {/* EDAD DE INGRESO + HORA AUTOMÁTICA BOGOTÁ COLOMBIA */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-50 border-2 border-slate-200 focus-within:border-sky-500 rounded-2xl p-4 transition-all">
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-2">
+              EDAD INGRESO
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 block mb-1">Años</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={edadAnos}
+                  onChange={(e) => setEdadAnos(e.target.value)}
+                  placeholder="ej. 6"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-base font-bold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-sky-500 outline-none text-center"
+                />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 block mb-1">Meses</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={11}
+                  value={edadMeses}
+                  onChange={(e) => setEdadMeses(e.target.value)}
+                  placeholder="ej. 4"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-base font-bold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-sky-500 outline-none text-center"
+                />
+              </div>
+            </div>
+            <span className="text-[11px] text-slate-500 block mt-1.5">
+              Se diligencia automáticamente en los anexos de la Fase 2 y Fase 3.
+            </span>
+          </div>
+
+          <div className="bg-sky-50/70 border-2 border-sky-200 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <label className="text-xs font-black uppercase tracking-wider text-sky-900 flex items-center gap-1.5">
+                <CalendarClock className="w-4 h-4 text-sky-700" />
+                <span>Hora Automática (Bogotá, Colombia)</span>
+              </label>
+              <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                Tiempo Real
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={vitalesIngreso.horaIngreso || ""}
+                onChange={(e) => updateVital("horaIngreso", e.target.value)}
+                placeholder="HH:mm"
+                className="w-28 bg-white border-2 border-sky-400 rounded-xl px-3 py-2 text-lg font-mono font-black text-[#0c2340] text-center outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              <div className="text-xs text-slate-700 font-semibold">
+                <span className="block font-mono font-bold text-sky-900">{relojBogotaTexto}</span>
+                <span className="text-[10px] text-slate-500">
+                  Horario oficial America/Bogota · Autocompleta hora de inicio en módulos.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* EXAMEN FÍSICO · SIGNOS VITALES (AUTOLLENA FASE 2) */}
+        <div className="bg-[#f7fbfd] border-2 border-[#0b4d6c]/30 rounded-2xl p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-200/70 pb-2.5">
+            <div>
+              <h3 className="text-sm font-black uppercase text-[#0b4d6c] tracking-wider flex items-center gap-2">
+                <HeartPulse className="w-4 h-4 text-rose-600" />
+                <span>EXAMEN FÍSICO · SIGNOS VITALES</span>
+              </h3>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                Estos datos se transferirán automáticamente a Lista de Chequeo 1, Anexos, Vasopresores y Terapias para evitar volver a digitarlos.
+              </p>
+            </div>
+            <span className="text-[10px] font-black uppercase bg-sky-100 text-sky-900 px-2.5 py-1 rounded-full border border-sky-300">
+              Autollenado Fase 2 y 3
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Tensión arterial sistólica (mmHg)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.pas || ""}
+                onChange={(e) => updateVital("pas", e.target.value)}
+                placeholder="ej. 90"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Tensión arterial diastólica (mmHg)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.pad || ""}
+                onChange={(e) => updateVital("pad", e.target.value)}
+                placeholder="ej. 55"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Tensión arterial media (mmHg)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.pam || ""}
+                onChange={(e) => updateVital("pam", e.target.value)}
+                placeholder="Auto o manual"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Temperatura (°C)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.temperatura || ""}
+                onChange={(e) => updateVital("temperatura", e.target.value)}
+                placeholder="ej. 38.5"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Frecuencia cardíaca (lpm)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.fc || ""}
+                onChange={(e) => updateVital("fc", e.target.value)}
+                placeholder="ej. 142"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Frecuencia respiratoria (rpm)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.fr || ""}
+                onChange={(e) => updateVital("fr", e.target.value)}
+                placeholder="ej. 36"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Saturación de oxígeno (%)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.satO2 || ""}
+                onChange={(e) => updateVital("satO2", e.target.value)}
+                placeholder="ej. 95"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Peso actual (kg)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.pesoKg || ""}
+                onChange={(e) => updateVital("pesoKg", e.target.value)}
+                placeholder="ej. 18.5"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Índice de masa corporal (IMC)
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.imc || ""}
+                onChange={(e) => updateVital("imc", e.target.value)}
+                placeholder="ej. 16.4"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Escala de dolor
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.escalaDolor || ""}
+                onChange={(e) => updateVital("escalaDolor", e.target.value)}
+                placeholder="ej. FLACC 4/10 o EVA 3/10"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5 sm:col-span-2">
+              <label className="block text-[11px] font-black text-slate-700 mb-1">
+                Neurológico
+              </label>
+              <input
+                type="text"
+                value={vitalesIngreso.neurologico || ""}
+                onChange={(e) => updateVital("neurologico", e.target.value)}
+                placeholder="ej. Alerta, Glasgow 15/15, irritable, somnoliento..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
           </div>
         </div>
 

@@ -59,6 +59,7 @@ export function splitActivosYPapelera(allDocs: PacienteRegistro[]): {
     urgencias: { cantidad: number; items: any[] };
     detecto: { cantidad: number; items: any[] };
     laboratorios: { cantidad: number; items: any[] };
+    terapias: { cantidad: number; items: any[] };
   };
 } {
   const now = Date.now();
@@ -97,6 +98,14 @@ export function splitActivosYPapelera(allDocs: PacienteRegistro[]): {
       p.estado !== "descartado" &&
       p.estadosModulos?.fase1Validada === true &&
       !p.estadosModulos?.laboratoriosCompletado
+  );
+  const pendientesTerapias = activos.filter(
+    (p) =>
+      !p.fase3Completada &&
+      p.estado !== "completado" &&
+      p.estado !== "descartado" &&
+      (p.categoriaTriageValidada || p.categoriaTriage) === 3 &&
+      !p.estadosModulos?.terapiasCompletado
   );
 
   const alertas = {
@@ -139,6 +148,25 @@ export function splitActivosYPapelera(allDocs: PacienteRegistro[]): {
     laboratorios: {
       cantidad: pendientesLaboratorios.length,
       items: pendientesLaboratorios.map((p) => ({
+        id: p.id,
+        nombre: p.nombre
+          ? `${p.nombre} (ID: ${p.identificacionPaciente})`
+          : p.identificacionPaciente
+          ? `ID: ${p.identificacionPaciente}`
+          : "Paciente",
+        identificacionPaciente: p.identificacionPaciente || "",
+        categoriaTriage: p.categoriaTriageValidada || p.categoriaTriage,
+        categoriaTriageLabel:
+          p.categoriaTriageValidadaLabel || p.categoriaTriageLabel,
+        esperandoDesde:
+          p.tiemposSubmodulos?.timestampValidacionTriage ||
+          p.timestampPasoFase2 ||
+          p.timestampInicio,
+      })),
+    },
+    terapias: {
+      cantidad: pendientesTerapias.length,
+      items: pendientesTerapias.map((p) => ({
         id: p.id,
         nombre: p.nombre
           ? `${p.nombre} (ID: ${p.identificacionPaciente})`
@@ -215,6 +243,9 @@ export async function crearPacienteFirestore(
           payload.identificacionPaciente?.trim() || "Sin identificación",
         nombre: payload.nombre?.trim() || "",
         apellido: payload.apellido?.trim() || "",
+        edadAnos: payload.edadAnos?.trim() || "",
+        edadMeses: payload.edadMeses?.trim() || "",
+        vitalesIngreso: payload.vitalesIngreso || {},
         fechaCreacion: now,
         faseActual: payload.faseActual || 1,
         estado: payload.estado || "en_triage",
@@ -264,12 +295,15 @@ export async function crearPacienteFirestore(
           checklist1Completado: false,
           laboratoriosCompletado: false,
           anexoCompletado: false,
+          vasopresoresCompletado: false,
+          terapiasCompletado: false,
         },
         tiemposSubmodulos: payload.tiemposSubmodulos || {},
         laboratorios: payload.laboratorios || {},
         anexo2Data: payload.anexo2Data || {},
         anexo3Data: payload.anexo3Data || {},
         anexo4Data: payload.anexo4Data || {},
+        vasopresoresData: payload.vasopresoresData || {},
       });
 
       tx.set(counterRef, { lastSeq: nextSeq });
@@ -304,6 +338,8 @@ export async function actualizarPacienteFirestore(
             checklist1Completado: Boolean(current.estadosModulos?.checklist1Completado),
             laboratoriosCompletado: Boolean(current.estadosModulos?.laboratoriosCompletado),
             anexoCompletado: Boolean(current.estadosModulos?.anexoCompletado),
+            vasopresoresCompletado: Boolean(current.estadosModulos?.vasopresoresCompletado),
+            terapiasCompletado: Boolean(current.estadosModulos?.terapiasCompletado),
             ...patch.estadosModulos,
           }
         : current.estadosModulos;

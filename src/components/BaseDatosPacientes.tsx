@@ -5,6 +5,7 @@ import { FormularioLaboratorios } from "./FormularioLaboratorios";
 import { FormularioAnexo2Rojo } from "./FormularioAnexo2Rojo";
 import { FormularioAnexo3Amarillo } from "./FormularioAnexo3Amarillo";
 import { FormularioAnexo4Verde } from "./FormularioAnexo4Verde";
+import { FormularioVasopresores } from "./FormularioVasopresores";
 import { TableroControlDashboard } from "./TableroControlDashboard";
 import * as XLSX from "xlsx";
 import {
@@ -38,6 +39,8 @@ import {
   FileCheck2,
   ShieldCheck,
   Unlock,
+  Syringe,
+  Wind,
 } from "lucide-react";
 
 interface BaseDatosPacientesProps {
@@ -163,34 +166,62 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
       return;
     }
 
-    const dataParaExcel = pacientes.map((p) => ({
-      "Código Caso": p.codigo,
-      "Nombre Paciente": p.nombre || "",
-      "Identificación Paciente": p.identificacionPaciente || "Sin ID",
-      "Fecha Ingreso": formatearFecha(p.fechaCreacion),
-      "Categoría Triage": p.categoriaTriageValidadaLabel || p.categoriaTriageLabel || `Categoría ${p.categoriaTriage || 1}`,
-      "Motivo Cambio Categoría": p.motivoCambioCategoria || "",
-      "Puntos Tamizaje (0-8)": p.puntajeTamizaje ?? 0,
-      "Estado General": p.estado,
-      "Fase 1 (Triage)": p.fase1Completada ? "COMPLETADA (✓)" : "NO COMPLETADA (✗)",
-      "Tiempo Fase 1": formatearTiempo(p.tiempoFase1Segundos),
-      "Tamizaje / Diagnóstico Triage": p.diagnosticoTriage || "",
-      "Fase 2 (Urgencias)": p.fase2Completada ? "COMPLETADA (✓)" : "NO TRASCENDIÓ (✗)",
-      "Tiempo Fase 2": formatearTiempo(p.tiempoFase2Segundos),
-      "Aprobación Urgencias": p.aplicaSepsis !== false ? "APROBADO PARA FASE 3" : "NO APROBADO (DESCARTADO)",
-      "Diagnóstico Urgencias": p.diagnosticoUrgencias || "",
-      "Motivo Descarte": p.motivoDescarte || "",
-      "Fase 3 (DETECTO)": p.fase3Completada ? "COMPLETADA (✓)" : "NO TRASCENDIÓ (✗)",
-      "Tiempo Fase 3": formatearTiempo(p.tiempoFase3Segundos),
-      "Diagnóstico / Obs DETECTO": p.diagnosticoDetecto || "",
-      "Submódulo Validación Triage": formatearTiempo(p.tiemposSubmodulos?.validacionTriageSegundos),
-      "Submódulo Checklist 1": formatearTiempo(p.tiemposSubmodulos?.checklist1Segundos),
-      "Submódulo Laboratorios": formatearTiempo(p.tiemposSubmodulos?.laboratoriosSegundos),
-      "Origen Laboratorios": p.tiemposSubmodulos?.laboratoriosCompletadoPor || "",
-      "Submódulo Anexo Clínico": formatearTiempo(p.tiemposSubmodulos?.anexoSegundos),
-      "Cierre Anticipado": p.habilitadoCierreAnticipado ? `SÍ (${p.motivoCierreAnticipado || ""})` : "NO",
-      "Tiempo Total Acumulado": formatearTiempo(p.tiempoTotalSegundos),
-    }));
+    const dataParaExcel = pacientes.map((p) => {
+      const catVal = p.categoriaTriageValidada || p.categoriaTriage || 1;
+      const edadTexto = [
+        p.edadAnos ? `${p.edadAnos} años` : "",
+        p.edadMeses ? `${p.edadMeses} meses` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return {
+        "Código Caso": p.codigo,
+        "Nombre Paciente": p.nombre || "",
+        "Identificación Paciente": p.identificacionPaciente || "Sin ID",
+        "Edad": edadTexto || "Sin registro",
+        "Peso Ingreso (kg)": p.vitalesIngreso?.pesoKg || "",
+        "IMC": p.vitalesIngreso?.imc || "",
+        "Hora Ingreso Bogotá": p.vitalesIngreso?.horaIngreso || "",
+        "Fecha Ingreso": formatearFecha(p.fechaCreacion),
+        "Categoría Triage": p.categoriaTriageValidadaLabel || p.categoriaTriageLabel || `Categoría ${p.categoriaTriage || 1}`,
+        "Motivo Cambio Categoría": p.motivoCambioCategoria || "",
+        "Puntos Tamizaje (0-8)": p.puntajeTamizaje ?? 0,
+        "Estado General": p.estado,
+        "Fase 1 (Triage)": p.fase1Completada ? "COMPLETADA (✓)" : "NO COMPLETADA (✗)",
+        "Tiempo Fase 1": formatearTiempo(p.tiempoFase1Segundos),
+        "Tamizaje / Diagnóstico Triage": p.diagnosticoTriage || "",
+        "Fase 2 (Urgencias)": p.fase2Completada ? "COMPLETADA (✓)" : "NO TRASCENDIÓ (✗)",
+        "Tiempo Fase 2": formatearTiempo(p.tiempoFase2Segundos),
+        "Aprobación Urgencias": p.aplicaSepsis !== false ? "APROBADO PARA FASE 3" : "NO APROBADO (DESCARTADO)",
+        "Diagnóstico Urgencias": p.diagnosticoUrgencias || "",
+        "Motivo Descarte": p.motivoDescarte || "",
+        "Fase 3 (DETECTO)": p.fase3Completada ? "COMPLETADA (✓)" : "NO TRASCENDIÓ (✗)",
+        "Tiempo Fase 3": formatearTiempo(p.tiempoFase3Segundos),
+        "Diagnóstico / Obs DETECTO": p.diagnosticoDetecto || "",
+        "Submódulo Validación Triage": formatearTiempo(p.tiemposSubmodulos?.validacionTriageSegundos),
+        "Submódulo Checklist 1": formatearTiempo(p.tiemposSubmodulos?.checklist1Segundos),
+        "Submódulo Laboratorios": formatearTiempo(p.tiemposSubmodulos?.laboratoriosSegundos),
+        "Origen Laboratorios": p.tiemposSubmodulos?.laboratoriosCompletadoPor || "",
+        "Submódulo Anexo Clínico": formatearTiempo(p.tiemposSubmodulos?.anexoSegundos),
+        "Submódulo Vasopresores (Cat 3)":
+          catVal === 3
+            ? p.estadosModulos?.vasopresoresCompletado
+              ? formatearTiempo(p.tiemposSubmodulos?.vasopresoresSegundos)
+              : "Pendiente"
+            : "N/A",
+        "Módulo TERAPIAS (Cat 3)":
+          catVal === 3
+            ? p.estadosModulos?.terapiasCompletado ||
+              p.laboratorios?.gasesPaFiO2?.checked ||
+              p.laboratorios?.spFiO2?.checked
+              ? `Completado (${formatearTiempo(p.tiemposSubmodulos?.terapiasSegundos)})`
+              : "Pendiente"
+            : "N/A",
+        "Cierre Anticipado": p.habilitadoCierreAnticipado ? `SÍ (${p.motivoCierreAnticipado || ""})` : "NO",
+        "Tiempo Total Acumulado": formatearTiempo(p.tiempoTotalSegundos),
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
     const workbook = XLSX.utils.book_new();
@@ -670,27 +701,54 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
         const catValidadaDetalle: 1 | 2 | 3 =
           detalleActual.categoriaTriageValidada || catOriginalDetalle;
         const huboCambioCat = catValidadaDetalle !== catOriginalDetalle;
-        const estadosDetalle = detalleActual.estadosModulos || {
-          fase1Validada: Boolean(detalleActual.aprobadoUrgencias || detalleActual.fase2Completada),
-          checklist1Completado: Boolean(
-            detalleActual.formularioEquipoSepsis &&
-              Object.keys(detalleActual.formularioEquipoSepsis).length > 0
-          ),
-          laboratoriosCompletado: Boolean(
-            detalleActual.laboratorios && Object.keys(detalleActual.laboratorios).length > 0
-          ),
-          anexoCompletado: Boolean(
-            (catValidadaDetalle === 3 &&
-              detalleActual.anexo2Data &&
-              Object.keys(detalleActual.anexo2Data).length > 0) ||
-              (catValidadaDetalle === 2 &&
-                detalleActual.anexo3Data &&
-                Object.keys(detalleActual.anexo3Data).length > 0) ||
-              (catValidadaDetalle === 1 &&
-                detalleActual.anexo4Data &&
-                Object.keys(detalleActual.anexo4Data).length > 0)
-          ),
+        const estadosDetalle = {
+          fase1Validada:
+            detalleActual.estadosModulos?.fase1Validada ??
+            Boolean(detalleActual.aprobadoUrgencias || detalleActual.fase2Completada),
+          checklist1Completado:
+            detalleActual.estadosModulos?.checklist1Completado ??
+            Boolean(
+              detalleActual.formularioEquipoSepsis &&
+                Object.keys(detalleActual.formularioEquipoSepsis).length > 0
+            ),
+          laboratoriosCompletado:
+            detalleActual.estadosModulos?.laboratoriosCompletado ??
+            Boolean(
+              detalleActual.laboratorios && Object.keys(detalleActual.laboratorios).length > 0
+            ),
+          anexoCompletado:
+            detalleActual.estadosModulos?.anexoCompletado ??
+            Boolean(
+              (catValidadaDetalle === 3 &&
+                detalleActual.anexo2Data &&
+                Object.keys(detalleActual.anexo2Data).length > 0) ||
+                (catValidadaDetalle === 2 &&
+                  detalleActual.anexo3Data &&
+                  Object.keys(detalleActual.anexo3Data).length > 0) ||
+                (catValidadaDetalle === 1 &&
+                  detalleActual.anexo4Data &&
+                  Object.keys(detalleActual.anexo4Data).length > 0)
+            ),
+          vasopresoresCompletado:
+            detalleActual.estadosModulos?.vasopresoresCompletado ??
+            Boolean(
+              detalleActual.vasopresoresData &&
+                Object.keys(detalleActual.vasopresoresData).length > 0
+            ),
+          terapiasCompletado:
+            detalleActual.estadosModulos?.terapiasCompletado ??
+            Boolean(
+              detalleActual.laboratorios?.gasesPaFiO2?.checked ||
+                detalleActual.laboratorios?.spFiO2?.checked
+            ),
         };
+        const vitalesDetalle = detalleActual.vitalesIngreso;
+        const tieneEdadOVitales = Boolean(
+          detalleActual.edadAnos ||
+            detalleActual.edadMeses ||
+            (vitalesDetalle &&
+              Object.values(vitalesDetalle).some((v) => typeof v === "string" && v.trim() !== ""))
+        );
         const tsSubDetalle = detalleActual.tiemposSubmodulos || {};
         const tiempoFase3Detalle =
           detalleActual.tiempoFase3Segundos > 0
@@ -879,6 +937,63 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                     </div>
                   </div>
 
+                  {/* EDAD INGRESO Y EXAMEN FÍSICO / SIGNOS VITALES DE INGRESO */}
+                  {tieneEdadOVitales && (
+                    <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-black uppercase text-sky-900 tracking-wider flex items-center gap-1.5">
+                          <Activity className="w-4 h-4 text-sky-600" />
+                          <span>Edad Ingreso &amp; Examen Físico — Signos Vitales (Triage)</span>
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                          {(detalleActual.edadAnos || detalleActual.edadMeses) && (
+                            <span className="bg-white border border-sky-300 text-sky-900 px-2.5 py-0.5 rounded-lg">
+                              Edad: {detalleActual.edadAnos ? `${detalleActual.edadAnos} años` : ""}{" "}
+                              {detalleActual.edadMeses ? `${detalleActual.edadMeses} meses` : ""}
+                            </span>
+                          )}
+                          {vitalesDetalle?.horaIngreso && (
+                            <span className="bg-sky-900 text-sky-100 px-2.5 py-0.5 rounded-lg font-mono">
+                              Hora Bogotá: {vitalesDetalle.horaIngreso}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {vitalesDetalle && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+                          {[
+                            { label: "TA Sistólica", val: vitalesDetalle.pas, unit: "mmHg" },
+                            { label: "TA Diastólica", val: vitalesDetalle.pad, unit: "mmHg" },
+                            { label: "TA Media (PAM)", val: vitalesDetalle.pam, unit: "mmHg" },
+                            { label: "Temperatura", val: vitalesDetalle.temperatura, unit: "°C" },
+                            { label: "Frec. Cardíaca", val: vitalesDetalle.fc, unit: "lpm" },
+                            { label: "Frec. Respiratoria", val: vitalesDetalle.fr, unit: "rpm" },
+                            { label: "SatO₂", val: vitalesDetalle.satO2, unit: "%" },
+                            { label: "Peso Actual", val: vitalesDetalle.pesoKg, unit: "kg" },
+                            { label: "IMC", val: vitalesDetalle.imc, unit: "kg/m²" },
+                            { label: "Escala de Dolor", val: vitalesDetalle.escalaDolor, unit: "" },
+                            { label: "Neurológico", val: vitalesDetalle.neurologico, unit: "" },
+                          ].map((item) => (
+                            <div
+                              key={item.label}
+                              className="bg-white border border-sky-200/80 rounded-lg px-2.5 py-1.5"
+                            >
+                              <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                                {item.label}
+                              </span>
+                              <span className="text-xs font-black text-slate-900">
+                                {item.val && item.val.trim() !== ""
+                                  ? `${item.val}${item.unit ? ` ${item.unit}` : ""}`
+                                  : "—"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Banner de Clasificación Triage */}
                   <div>
                     <span className="text-xs font-bold text-slate-600 block mb-1">
@@ -940,8 +1055,12 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                     </span>
                   </div>
 
-                  {/* Resumen Estado de los 4 Submódulos */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {/* Resumen Estado de Submódulos (4 estándar + Vasopresores/TERAPIAS en Cat 3) */}
+                  <div
+                    className={`grid grid-cols-1 sm:grid-cols-2 ${
+                      catValidadaDetalle === 3 ? "lg:grid-cols-5" : "lg:grid-cols-4"
+                    } gap-2.5`}
+                  >
                     <div
                       className={`p-3 rounded-xl border text-xs ${
                         estadosDetalle.fase1Validada
@@ -1049,7 +1168,64 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                         Tiempo: {formatearTiempo(tsSubDetalle.anexoSegundos)}
                       </span>
                     </div>
+
+                    {catValidadaDetalle === 3 && (
+                      <div
+                        className={`p-3 rounded-xl border text-xs ${
+                          estadosDetalle.vasopresoresCompletado
+                            ? "bg-emerald-50 border-emerald-300"
+                            : "bg-rose-50 border-rose-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-black text-slate-800">Submódulo 5</span>
+                          <span
+                            className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                              estadosDetalle.vasopresoresCompletado
+                                ? "bg-emerald-600 text-white"
+                                : "bg-rose-200 text-rose-900"
+                            }`}
+                          >
+                            {estadosDetalle.vasopresoresCompletado ? "✓ Completado" : "Pendiente"}
+                          </span>
+                        </div>
+                        <span className="block font-bold text-slate-700 mt-1">
+                          Vasopresores Periféricos
+                        </span>
+                        <span className="block text-[11px] font-mono text-slate-500 mt-0.5">
+                          Tiempo: {formatearTiempo(tsSubDetalle.vasopresoresSegundos)}
+                        </span>
+                      </div>
+                    )}
                   </div>
+
+                  {catValidadaDetalle === 3 && (
+                    <div
+                      className={`rounded-xl border px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs ${
+                        estadosDetalle.terapiasCompletado
+                          ? "bg-cyan-50 border-cyan-300 text-cyan-950"
+                          : "bg-amber-50 border-amber-300 text-amber-950"
+                      }`}
+                    >
+                      <span className="font-black flex items-center gap-2">
+                        <Wind className="w-4 h-4 text-cyan-700" />
+                        <span>
+                          Módulo TERAPIAS (Categoría 3 Choque Séptico — PaFiO₂ y SpFiO₂ / SaFiO₂):
+                        </span>
+                      </span>
+                      <span
+                        className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
+                          estadosDetalle.terapiasCompletado
+                            ? "bg-cyan-700 text-white"
+                            : "bg-amber-200 text-amber-950"
+                        }`}
+                      >
+                        {estadosDetalle.terapiasCompletado
+                          ? `✓ Diligenciado por Terapias (${formatearTiempo(tsSubDetalle.terapiasSegundos)})`
+                          : "Pendiente en Módulo TERAPIAS"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* SUBMÓDULO 1: VALIDACIÓN MÉDICA DE TRIAGE Y CONCEPTO */}
                   <div className="border border-amber-200 rounded-2xl p-4 bg-amber-50/30 space-y-3">
@@ -1244,6 +1420,35 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
                       />
                     )}
                   </div>
+
+                  {/* SUBMÓDULO 5 (SOLO CATEGORÍA 3): VASOPRESORES POR VENA PERIFÉRICA */}
+                  {catValidadaDetalle === 3 && (
+                    <div className="border-2 border-red-300 rounded-2xl p-4 bg-red-50/40 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-black uppercase text-red-900 tracking-wider flex items-center gap-1.5">
+                          <Syringe className="w-4 h-4 text-red-700" />
+                          <span>Submódulo 5 · Vasopresores por Vena Periférica (Cat 3)</span>
+                        </span>
+                        <span
+                          className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                            estadosDetalle.vasopresoresCompletado
+                              ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                              : "bg-slate-100 text-slate-600 border-slate-300"
+                          }`}
+                        >
+                          {estadosDetalle.vasopresoresCompletado
+                            ? `✓ Completado (${formatearTiempo(tsSubDetalle.vasopresoresSegundos)})`
+                            : "Pendiente / Sin guardar"}
+                        </span>
+                      </div>
+                      <FormularioVasopresores
+                        data={detalleActual.vasopresoresData || {}}
+                        pesoIngresoDefault={vitalesDetalle?.pesoKg || ""}
+                        horaIngresoDefault={vitalesDetalle?.horaIngreso || ""}
+                        soloLectura={true}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* TARJETA 3: FASE 3 - EQUIPO DETECTO Y COMENTARIOS */}

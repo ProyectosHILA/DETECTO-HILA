@@ -1,13 +1,14 @@
 import React from "react";
 import { LaboratoriosDOMData, ParaclinicoEntry } from "../types";
 import { FormattedTimeInput } from "./FormattedTimeInput";
-import { AlertCircle, Calculator, FlaskConical, TestTube2 } from "lucide-react";
+import { AlertCircle, Calculator, FlaskConical, Table2, TestTube2, Wind } from "lucide-react";
 
 interface FormularioLaboratoriosProps {
   data: LaboratoriosDOMData;
   categoriaValidada: 1 | 2 | 3;
   onChange?: (updated: LaboratoriosDOMData) => void;
   soloLectura?: boolean;
+  onAbrirListaCups?: () => void;
 }
 
 export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
@@ -15,6 +16,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
   categoriaValidada,
   onChange,
   soloLectura = false,
+  onAbrirListaCups,
 }) => {
   const updateEntry = (
     key:
@@ -119,11 +121,23 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
             </span>
           </div>
         </div>
-        {esRojo && (
-          <span className="bg-red-600 text-white font-black px-3 py-1 rounded-full text-[11px] animate-pulse border border-red-400">
-            URGENTE &lt; 45 MIN (ROJO)
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {onAbrirListaCups && (
+            <button
+              type="button"
+              onClick={onAbrirListaCups}
+              className="bg-teal-400 hover:bg-teal-300 text-slate-950 font-black px-3 py-1.5 rounded-xl text-[11px] flex items-center gap-1.5 shadow cursor-pointer transition-colors"
+            >
+              <Table2 className="w-3.5 h-3.5" />
+              <span>Lista Labs / CUPS · Exportar</span>
+            </button>
+          )}
+          {esRojo && (
+            <span className="bg-red-600 text-white font-black px-3 py-1 rounded-full text-[11px] animate-pulse border border-red-400">
+              URGENTE &lt; 45 MIN (ROJO)
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 1. SECCIÓN D: PARACLÍNICOS DE LAS ÚLTIMAS 6 HORAS (DOM) */}
@@ -642,19 +656,38 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
 
       {/* 2. CALCULADORAS RESPIRATORIAS: PaFiO2 y SpFiO2 / SaFiO2 */}
       <div className="p-4 border-b border-slate-300 bg-[#f7fcfd] space-y-3">
-        <h4 className="font-black text-xs uppercase text-[#074c5d] tracking-wider flex items-center gap-1.5">
-          <Calculator className="w-4 h-4 text-[#007b8f]" />
-          Clasificación Sistema Respiratorio · Cálculo Automático PaFiO₂ y SpFiO₂ (SaFiO₂)
-        </h4>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="font-black text-xs uppercase text-[#074c5d] tracking-wider flex items-center gap-1.5">
+            <Calculator className="w-4 h-4 text-[#007b8f]" />
+            Clasificación Sistema Respiratorio · Cálculo Automático PaFiO₂ y SpFiO₂ (SaFiO₂)
+          </h4>
+          {esRojo && (
+            <span className="text-[10px] font-black uppercase bg-cyan-100 text-cyan-950 border border-cyan-400 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+              <Wind className="w-3 h-3 text-cyan-700" />
+              <span>Gestionado en Módulo TERAPIAS (Cat 3)</span>
+            </span>
+          )}
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {esRojo && !soloLectura && (
+          <div className="bg-cyan-50 border-2 border-cyan-400 rounded-xl p-3 text-xs font-bold text-cyan-950 flex items-start gap-2">
+            <Wind className="w-4 h-4 text-cyan-700 shrink-0 mt-0.5" />
+            <span>
+              Paciente en <strong>Categoría 3 (Alerta Choque Séptico)</strong>: los campos de{" "}
+              <strong>PaFiO₂ y SpFiO₂ (SaFiO₂)</strong> son diligenciados por el equipo de{" "}
+              <strong>TERAPIAS</strong> desde su módulo dedicado y se reflejan automáticamente aquí en tiempo real.
+            </span>
+          </div>
+        )}
+
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${esRojo && !soloLectura ? "opacity-85" : ""}`}>
           {/* Calculadora PaFiO2 */}
           <div className="bg-white border-2 border-[#007b8f]/40 rounded-2xl p-4 space-y-3 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <label className="flex items-center gap-2 font-black text-slate-900 cursor-pointer">
                 <input
                   type="checkbox"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   checked={Boolean(data.gasesPaFiO2?.checked)}
                   onChange={(e) => updateGases("checked", e.target.checked)}
                   className="accent-[#007b8f] w-4 h-4"
@@ -663,7 +696,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
               </label>
               <FormattedTimeInput
                 mode="time"
-                disabled={soloLectura}
+                disabled={soloLectura || esRojo}
                 value={data.gasesPaFiO2?.fechaHora || ""}
                 onValueChange={(val) => updateGases("fechaHora", val)}
                 placeholder="Hora (hh:mm)"
@@ -677,7 +710,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <input
                   type="number"
                   step="any"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   value={data.gasesPaFiO2?.pao2 || ""}
                   onChange={(e) => updateGases("pao2", e.target.value)}
                   placeholder="ej. 75"
@@ -689,7 +722,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <input
                   type="number"
                   step="any"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   value={data.gasesPaFiO2?.fio2 || ""}
                   onChange={(e) => updateGases("fio2", e.target.value)}
                   placeholder="ej. 0.40 o 40"
@@ -700,7 +733,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <span className="text-[10px] font-black text-[#0b4d6c] block">Resultado PaFiO₂</span>
                 <input
                   type="text"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   value={data.gasesPaFiO2?.resultado || ""}
                   onChange={(e) => updateGases("resultado", e.target.value)}
                   placeholder="PaFiO₂"
@@ -716,7 +749,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
               <label className="flex items-center gap-2 font-black text-slate-900 cursor-pointer">
                 <input
                   type="checkbox"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   checked={Boolean(data.spFiO2?.checked)}
                   onChange={(e) => updateSpFi("checked", e.target.checked)}
                   className="accent-[#007b8f] w-4 h-4"
@@ -725,7 +758,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
               </label>
               <FormattedTimeInput
                 mode="time"
-                disabled={soloLectura}
+                disabled={soloLectura || esRojo}
                 value={data.spFiO2?.fechaHora || ""}
                 onValueChange={(val) => updateSpFi("fechaHora", val)}
                 placeholder="Hora (hh:mm)"
@@ -739,7 +772,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <input
                   type="number"
                   step="any"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   value={data.spFiO2?.spo2 || ""}
                   onChange={(e) => updateSpFi("spo2", e.target.value)}
                   placeholder="ej. 94"
@@ -751,7 +784,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <input
                   type="number"
                   step="any"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   value={data.spFiO2?.fio2 || ""}
                   onChange={(e) => updateSpFi("fio2", e.target.value)}
                   placeholder="ej. 0.21 o 21"
@@ -762,7 +795,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <span className="text-[10px] font-black text-[#0b4d6c] block">Resultado SpFiO₂</span>
                 <input
                   type="text"
-                  disabled={soloLectura}
+                  disabled={soloLectura || esRojo}
                   value={data.spFiO2?.resultado || ""}
                   onChange={(e) => updateSpFi("resultado", e.target.value)}
                   placeholder="SpFiO₂"

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
+import * as pdfjsLib from "pdfjs-dist";
 import { PacienteRegistro, LaboratoriosDOMData } from "../types";
 import { FormularioLaboratorios } from "./FormularioLaboratorios";
+import { ModalListaLaboratoriosCups } from "./ModalListaLaboratoriosCups";
 import {
   FlaskConical,
   Clock,
@@ -16,7 +18,13 @@ import {
   Loader2,
   ShieldCheck,
   XCircle,
+  Table2,
 } from "lucide-react";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 interface AuditoriaExtraccion {
   fileName: string;
@@ -59,6 +67,7 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
   const [auditoriaPdf, setAuditoriaPdf] = useState<AuditoriaExtraccion | null>(null);
   const [conservarPrevios, setConservarPrevios] = useState<boolean>(false);
   const [arrastrandoArchivo, setArrastrandoArchivo] = useState<boolean>(false);
+  const [mostrarListaCups, setMostrarListaCups] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const pacienteSeleccionado =
@@ -118,6 +127,142 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
       reader.readAsDataURL(file);
     });
 
+  const comprimirImagen = (file: File): Promise<{ base64: string; mime: string }> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 2000;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const ratio = Math.min(maxDim / width, maxDim / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            URL.revokeObjectURL(url);
+            reject(new Error("No se pudo inicializar el lienzo para comprimir la imagen."));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          URL.revokeObjectURL(url);
+          const commaIdx = dataUrl.indexOf(",");
+          resolve({
+            base64: commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl,
+            mime: "image/jpeg",
+          });
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("No se pudo cargar la imagen seleccionada."));
+      };
+      img.src = url;
+    });
+
+  const prepararPayloadDocumento = async (
+    file: File,
+    mime: string
+  ): Promise<{
+    fileBase64?: string;
+    imagesBase64?: string[];
+    extractedText?: string;
+    mimeType: string;
+    fileName: string;
+  }> => {
+    if (mime === "application/pdf") {
+      let extractedText = "";
+      const imagesBase64: string[] = [];
+
+      try {
+        const buffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: buffer });
+        const pdf = await loadingTask.promise;
+
+        const textChunks: string[] = [];
+        const maxTextPages = Math.min(pdf.numPages, 15);
+        for (let p = 1; p <= maxTextPages; p++) {
+          const page = await pdf.getPage(p);
+          const tc = await page.getTextContent();
+          const line = tc.items
+            .map((it: any) => (typeof it?.str === "string" ? it.str : ""))
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (line) {
+            textChunks.push(`[Página ${p}] ${line}`);
+          }
+        }
+        extractedText = textChunks.join("\n");
+
+        // For PDFs > 2 MB, render pages to compact JPEGs so upload never hits proxy payload limits
+        if (file.size > 2 * 1024 * 1024) {
+          const maxImgPages = Math.min(pdf.numPages, 6);
+          for (let p = 1; p <= maxImgPages; p++) {
+            const page = await pdf.getPage(p);
+            const viewport = page.getViewport({ scale: 1.4 });
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.floor(viewport.width);
+            canvas.height = Math.floor(viewport.height);
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              await page.render({ canvasContext: ctx, canvas, viewport }).promise;
+              const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+              const idx = dataUrl.indexOf(",");
+              imagesBase64.push(idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl);
+            }
+          }
+        }
+        pdf.cleanup();
+      } catch (pdfErr) {
+        console.warn("Aviso preprocesando PDF con pdfjs:", pdfErr);
+      }
+
+      if (imagesBase64.length > 0) {
+        return {
+          imagesBase64,
+          extractedText: extractedText || undefined,
+          mimeType: "image/jpeg",
+          fileName: file.name,
+        };
+      }
+
+      const fileBase64 = await fileToBase64(file);
+      return {
+        fileBase64,
+        extractedText: extractedText || undefined,
+        mimeType: mime,
+        fileName: file.name,
+      };
+    }
+
+    // Image upload: compress if larger than 1.8 MB
+    if (file.size > 1.8 * 1024 * 1024) {
+      const compressed = await comprimirImagen(file);
+      return {
+        fileBase64: compressed.base64,
+        mimeType: compressed.mime,
+        fileName: file.name,
+      };
+    }
+
+    const fileBase64 = await fileToBase64(file);
+    return {
+      fileBase64,
+      mimeType: mime,
+      fileName: file.name,
+    };
+  };
+
   const procesarDocumentoLaboratorio = async (file: File) => {
     if (analizandoPdf) return;
     setErrorPdf(null);
@@ -150,29 +295,34 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
       return;
     }
 
-    if (file.size > 15 * 1024 * 1024) {
-      setErrorPdf("El archivo supera el límite máximo permitido de 15 MB.");
+    if (file.size > 25 * 1024 * 1024) {
+      setErrorPdf("El archivo supera el límite máximo permitido de 25 MB.");
       return;
     }
 
     setAnalizandoPdf(true);
     try {
-      const fileBase64 = await fileToBase64(file);
+      const requestBody = await prepararPayloadDocumento(file, mime);
       const response = await fetch("/api/laboratorios/interpretar-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileBase64,
-          mimeType: mime,
-          fileName: file.name,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          payload?.error || "Error interpretando el documento de laboratorio."
-        );
+      const rawRespText = await response.text();
+      let payload: any = null;
+      try {
+        payload = rawRespText ? JSON.parse(rawRespText) : null;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok || !payload) {
+        const snippet = rawRespText?.trim().startsWith("<")
+          ? `El servidor devolvió una respuesta HTML inesperada (HTTP ${response.status}). Intente nuevamente o adjunte el documento en otro formato.`
+          : rawRespText?.slice(0, 180) ||
+            `Error interpretando el documento de laboratorio (HTTP ${response.status}).`;
+        throw new Error(payload?.error || snippet);
       }
 
       const extracted = (payload?.extracted || {}) as LaboratoriosDOMData;
@@ -367,9 +517,19 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
             <span>Volver a solicitudes de Laboratorio</span>
           </button>
 
-          <span className="text-xs font-black uppercase bg-teal-100 text-teal-950 border border-teal-400 px-3 py-1 rounded-full">
-            Módulo de Laboratorios · Resultados de Laboratorio
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMostrarListaCups(true)}
+              className="bg-[#0b4d6c] hover:bg-teal-800 text-white px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+            >
+              <Table2 className="w-4 h-4 text-teal-300" />
+              <span>Lista de Exámenes y CUPS (Copiar / Excel)</span>
+            </button>
+            <span className="text-xs font-black uppercase bg-teal-100 text-teal-950 border border-teal-400 px-3 py-1 rounded-full">
+              Módulo de Laboratorios · Resultados de Laboratorio
+            </span>
+          </div>
         </div>
 
         {/* Header del Paciente + Cronómetro */}
@@ -522,7 +682,7 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
                     Haga clic aquí o arrastre el PDF / imagen del laboratorio
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Formatos soportados: <strong>PDF</strong>, PNG, JPG, WEBP (máx. 15 MB) · Extracción estricta sin datos inventados.
+                    Formatos soportados: <strong>PDF</strong>, PNG, JPG, WEBP (máx. 25 MB) · Extracción estricta sin datos inventados.
                   </p>
                 </div>
                 <span className="bg-[#0b4d6c] hover:bg-teal-800 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-sm shrink-0">
@@ -612,11 +772,20 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
         <FormularioLaboratorios
           data={labsData}
           categoriaValidada={catValidada}
+          onAbrirListaCups={() => setMostrarListaCups(true)}
           onChange={(updated) => {
             dirtyRef.current = true;
             setLabsData(updated);
           }}
         />
+
+        {mostrarListaCups && (
+          <ModalListaLaboratoriosCups
+            pacientes={pacientesPendientes}
+            pacienteInicialId={pacienteSeleccionado.id}
+            onCerrar={() => setMostrarListaCups(false)}
+          />
+        )}
 
         {/* Botón Guardar y Sincronizar con Fase 2 */}
         <div className="bg-white border-2 border-emerald-500 rounded-2xl p-4 shadow-lg flex flex-wrap items-center justify-between gap-4">
@@ -665,9 +834,19 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
           ← Salir al inicio
         </button>
 
-        <span className="text-xs font-black uppercase bg-teal-100 text-teal-950 px-3 py-1.5 rounded-xl border border-teal-400">
-          Módulo de Laboratorios
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMostrarListaCups(true)}
+            className="bg-[#0b4d6c] hover:bg-teal-800 text-white px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+          >
+            <Table2 className="w-4 h-4 text-teal-300" />
+            <span>Lista Exámenes / CUPS · Exportar Excel</span>
+          </button>
+          <span className="text-xs font-black uppercase bg-teal-100 text-teal-950 px-3 py-1.5 rounded-xl border border-teal-400">
+            Módulo de Laboratorios
+          </span>
+        </div>
       </div>
 
       {/* Main Banner */}
@@ -791,6 +970,14 @@ export const ModuloLaboratorios: React.FC<ModuloLaboratoriosProps> = ({
           </div>
         )}
       </div>
+
+      {mostrarListaCups && (
+        <ModalListaLaboratoriosCups
+          pacientes={pacientesPendientes}
+          pacienteInicialId={selectedId}
+          onCerrar={() => setMostrarListaCups(false)}
+        />
+      )}
     </div>
   );
 };

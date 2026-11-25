@@ -1,22 +1,24 @@
 import React from "react";
 import { UsuarioSesion } from "../types";
 import { DetectoLogo } from "./DetectoLogo";
-import { Home, LogOut, ShieldCheck } from "lucide-react";
+import { Home, LogOut, Table2 } from "lucide-react";
 
 interface HeaderProps {
   onVolverAlMenu?: () => void;
   onCerrarSesion?: () => void;
+  onAbrirListaLaboratorios?: () => void;
   usuarioActual?: UsuarioSesion | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onVolverAlMenu,
   onCerrarSesion,
+  onAbrirListaLaboratorios,
   usuarioActual,
 }) => {
   return (
     <header className="bg-[#0c2340] border-b border-sky-900/60 text-white shadow-md sticky top-0 z-40 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-2.5 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-2.5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-4">
           {onVolverAlMenu && (
             <button
@@ -32,7 +34,20 @@ export const Header: React.FC<HeaderProps> = ({
           <DetectoLogo size="md" showText={true} textColor="light" />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {usuarioActual && onAbrirListaLaboratorios && (
+            <button
+              type="button"
+              onClick={onAbrirListaLaboratorios}
+              className="bg-teal-500 hover:bg-teal-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              title="Ver lista de laboratorios con columna CUPS, copiar en tabla o exportar Excel plano"
+            >
+              <Table2 className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Lista Labs / CUPS</span>
+              <span className="md:hidden">CUPS</span>
+            </button>
+          )}
+
           {usuarioActual && (
             <div className="flex items-center gap-2 bg-sky-950/90 px-3 py-1.5 rounded-xl border border-sky-700/60 shadow-inner">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -41,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {usuarioActual.rol === "medico_urgencias" && "Fase 2: Equipo de Sepsis"}
                 {usuarioActual.rol === "grupo_detecto" && "Fase 3: Equipo DETECTO"}
                 {usuarioActual.rol === "laboratorio" && "Módulo de Laboratorios"}
+                {usuarioActual.rol === "terapias" && "Módulo TERAPIAS (Cat 3)"}
                 {usuarioActual.rol === "super_usuario" && "Super Usuario"}
               </span>
             </div>
