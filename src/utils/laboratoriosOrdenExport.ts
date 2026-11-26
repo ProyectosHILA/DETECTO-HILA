@@ -169,9 +169,9 @@ export function construirListaLaboratoriosPorCaso(
     },
     {
       id: "lactatoSerico",
-      sistema: "Cardiovascular / Perfusión",
-      examen: "Lactato sérico",
-      detalle: "Evaluación de hipoperfusión tisular y choque séptico",
+      sistema: "Gases / Muestras Venosas",
+      examen: "Muestras venosas: Lactato sérico",
+      detalle: "Evaluación de hipoperfusión tisular (cLac) y choque séptico (Módulo TERAPIAS)",
       cups: "",
       prioridadMeta: metaDOM,
       fechaHora: data.lactatoSerico?.fechaHora || "",

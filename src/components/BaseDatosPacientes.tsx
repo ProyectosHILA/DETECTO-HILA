@@ -1201,29 +1201,55 @@ export const BaseDatosPacientes: React.FC<BaseDatosPacientesProps> = ({
 
                   {catValidadaDetalle === 3 && (
                     <div
-                      className={`rounded-xl border px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs ${
+                      className={`rounded-xl border px-3.5 py-2.5 space-y-1.5 text-xs ${
                         estadosDetalle.terapiasCompletado
                           ? "bg-cyan-50 border-cyan-300 text-cyan-950"
                           : "bg-amber-50 border-amber-300 text-amber-950"
                       }`}
                     >
-                      <span className="font-black flex items-center gap-2">
-                        <Wind className="w-4 h-4 text-cyan-700" />
-                        <span>
-                          Módulo TERAPIAS (Categoría 3 Choque Séptico — PaFiO₂ y SpFiO₂ / SaFiO₂):
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-black flex items-center gap-2">
+                          <Wind className="w-4 h-4 text-cyan-700" />
+                          <span>
+                            Módulo TERAPIAS (Categoría 3 Choque Séptico — Gases Venosos, PaFiO₂ y SpFiO₂):
+                          </span>
                         </span>
-                      </span>
-                      <span
-                        className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
-                          estadosDetalle.terapiasCompletado
-                            ? "bg-cyan-700 text-white"
-                            : "bg-amber-200 text-amber-950"
-                        }`}
-                      >
-                        {estadosDetalle.terapiasCompletado
-                          ? `✓ Diligenciado por Terapias (${formatearTiempo(tsSubDetalle.terapiasSegundos)})`
-                          : "Pendiente en Módulo TERAPIAS"}
-                      </span>
+                        <span
+                          className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
+                            estadosDetalle.terapiasCompletado
+                              ? "bg-cyan-700 text-white"
+                              : "bg-amber-200 text-amber-950"
+                          }`}
+                        >
+                          {estadosDetalle.terapiasCompletado
+                            ? `✓ Diligenciado por Terapias (${formatearTiempo(tsSubDetalle.terapiasSegundos)})`
+                            : "Pendiente en Módulo TERAPIAS"}
+                        </span>
+                      </div>
+                      {(detalleActual.laboratorios?.lactatoSerico?.valor ||
+                        detalleActual.laboratorios?.gasesPaFiO2?.resultado ||
+                        detalleActual.laboratorios?.spFiO2?.resultado ||
+                        (detalleActual.laboratorios?.fotosGases?.length || 0) > 0) && (
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-slate-800 pt-1 border-t border-cyan-200/70">
+                          <span>
+                            Lactato (cLac):{" "}
+                            <strong>{detalleActual.laboratorios?.lactatoSerico?.valor || "—"}</strong>
+                          </span>
+                          <span>
+                            PaFiO₂:{" "}
+                            <strong>{detalleActual.laboratorios?.gasesPaFiO2?.resultado || "—"}</strong>
+                          </span>
+                          <span>
+                            SpFiO₂ (SaFiO₂):{" "}
+                            <strong>{detalleActual.laboratorios?.spFiO2?.resultado || "—"}</strong>
+                          </span>
+                          {(detalleActual.laboratorios?.fotosGases?.length || 0) > 0 && (
+                            <span className="bg-cyan-700 text-white px-2 py-0.5 rounded-full text-[10px] font-sans font-black">
+                              {detalleActual.laboratorios?.fotosGases?.length} foto(s) guardada(s) abajo
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

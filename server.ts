@@ -449,6 +449,10 @@ async function startServer() {
 
   app.use(express.json({ limit: "30mb" }));
 
+  const uploadsGasesDir = path.join(__dirname, "uploads", "gases");
+  fs.mkdirSync(uploadsGasesDir, { recursive: true });
+  app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
   // API: Get active patients (from Cloud Firestore)
   app.get("/api/pacientes", async (_req: Request, res: Response) => {
     try {
@@ -1613,6 +1617,264 @@ RESTRICCIONES ESTRICTAS (OBLIGATORIAS):
         error: formatFriendlyGeminiError(
           err,
           "Error al rectificar y aplicar dictado médico."
+        ),
+      });
+    }
+  });
+
+  // API: Guardar foto de tira de gases (venosa / arterial) en disco del servidor
+  app.post("/api/terapias/guardar-foto", async (req: Request, res: Response) => {
+    try {
+      const { pacienteId, tipo, imageBase64, mimeType, fileName } = req.body || {};
+      if (!imageBase64 || typeof imageBase64 !== "string") {
+        return res.status(400).json({ error: "No se recibió la imagen para guardar." });
+      }
+
+      const safeTipo = tipo === "venosa" ? "venosa" : "arterial";
+      const safePacienteId = String(pacienteId || "pac")
+        .replace(/[^a-zA-Z0-9_-]/g, "")
+        .slice(0, 48) || "pac";
+
+      const normalizedMime = String(mimeType || "image/jpeg").toLowerCase();
+      let ext = "jpg";
+      if (normalizedMime.includes("png")) ext = "png";
+      else if (normalizedMime.includes("webp")) ext = "webp";
+      else if (normalizedMime.includes("pdf")) ext = "pdf";
+
+      const cleanB64 = imageBase64.includes(",")
+        ? imageBase64.slice(imageBase64.indexOf(",") + 1)
+        : imageBase64;
+      const buffer = Buffer.from(cleanB64, "base64");
+
+      if (buffer.length === 0) {
+        return res.status(400).json({ error: "El archivo de imagen está vacío." });
+      }
+      if (buffer.length > 15 * 1024 * 1024) {
+        return res.status(400).json({ error: "La imagen excede el límite de 15 MB." });
+      }
+
+      const uniqueName = `${safePacienteId}_${safeTipo}_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2, 6)}.${ext}`;
+      const destPath = path.join(uploadsGasesDir, uniqueName);
+      fs.writeFileSync(destPath, buffer);
+
+      res.status(201).json({
+        url: `/uploads/gases/${uniqueName}`,
+        fileName: String(fileName || uniqueName).slice(0, 120),
+        tipo: safeTipo,
+      });
+    } catch (err: any) {
+      console.error("Error guardando foto de gases en servidor:", err);
+      res.status(500).json({ error: "No se pudo guardar la foto en el servidor." });
+    }
+  });
+
+  // API: Interpretar tirilla Radiometer ABL90 SERIES / Gases (Muestra Venosa -> cLac | Arterial -> PaFiO2 y SpFiO2)
+  app.post("/api/terapias/interpretar-gases", async (req: Request, res: Response) => {
+    try {
+      const {
+        fileBase64,
+        imagesBase64,
+        extractedText,
+        mimeType,
+        fileName,
+        tipoMuestraEsperado = "auto",
+      } = req.body || {};
+
+      const hasImagesArray = Array.isArray(imagesBase64) && imagesBase64.length > 0;
+      const hasExtractedText =
+        typeof extractedText === "string" && extractedText.trim().length > 0;
+
+      if (!fileBase64 && !hasImagesArray && !hasExtractedText) {
+        return res
+          .status(400)
+          .json({ error: "No se recibió imagen o archivo de gases para interpretar." });
+      }
+
+      const normalizedMime =
+        mimeType === "image/jpg" ? "image/jpeg" : String(mimeType || "image/jpeg");
+
+      const ai = getGeminiClient();
+
+      const gasesSchema = {
+        type: Type.OBJECT,
+        properties: {
+          tipoMuestraDetectado: {
+            type: Type.STRING,
+            description: "'venosa', 'arterial', o 'desconocido' según el campo Tipo muestra del reporte.",
+          },
+          fechaHora: {
+            type: Type.STRING,
+            description: "Hora del análisis en formato 24h 'hh:mm' (ej. '07:58' o '10:19'); '' si no aparece.",
+          },
+          fechaCompleta: {
+            type: Type.STRING,
+            description: "Fecha y hora en 'dd/mm hh:mm' si aparece en el encabezado (ej. '25/11 10:19'); '' si no.",
+          },
+          cLac: {
+            type: Type.STRING,
+            description: "Valor numérico de cLac / Lactato en mmol/L (ej. '1.3'); '' si no aparece.",
+          },
+          pO2: {
+            type: Type.STRING,
+            description: "Valor numérico de pO2(T)c / PaO2 en mmHg (ej. '95.7'); '' si no aparece.",
+          },
+          sO2: {
+            type: Type.STRING,
+            description: "Valor numérico de sO2 / SatO2 en % (ej. '97.2'); '' si no aparece.",
+          },
+          fio2: {
+            type: Type.STRING,
+            description: "Valor numérico de FO2(I) / FiO2 en % o decimal (ej. '35.0' o '0.35'); '' si no aparece.",
+          },
+          pao2Fio2Equipo: {
+            type: Type.STRING,
+            description: "Valor pO2(a)/FO2(I)c si viene impreso en el reporte (ej. '259'); '' si no aparece.",
+          },
+          evidencia: {
+            type: Type.STRING,
+            description: "Resumen breve literal de los parámetros leídos del ticket.",
+          },
+        },
+        required: [
+          "tipoMuestraDetectado",
+          "fechaHora",
+          "fechaCompleta",
+          "cLac",
+          "pO2",
+          "sO2",
+          "fio2",
+          "pao2Fio2Equipo",
+          "evidencia",
+        ],
+      };
+
+      const systemInstruction = `Eres un especialista clínico leyendo tirillas de analizador de gases sanguíneos (como RADIOMETER ABL90 SERIES) para Terapia Respiratoria pediátrica.
+REGLAS ESTRICTAS:
+1. CERO INVENCIÓN: Lee ÚNICAMENTE los números impresos en la imagen o documento (${fileName || "gases"}). Si un dato no es legible o no aparece, devuelve "".
+2. TIPO DE MUESTRA: Identifica 'Tipo muestra' (Venosa o Arterial).
+3. MUESTRAS EN VENA: Extrae con máxima precisión 'cLac' (mmol/L) y la hora del reporte.
+4. MUESTRAS EN ARTERIA: Extrae con máxima precisión 'pO2(T)c' (mmHg), 'sO2' (%), 'FO2(I)' (% o fracción), 'pO2(a)/FO2(I)c' si aparece impreso, y la hora del reporte.
+5. HORA 24H: Convierte '07:58 AM' -> '07:58', '02:15 PM' -> '14:15'. Para fechaCompleta usa 'dd/mm hh:mm' si hay fecha.`;
+
+      const contentParts: any[] = [];
+      if (hasImagesArray) {
+        for (const imgB64 of imagesBase64.slice(0, 4)) {
+          if (typeof imgB64 === "string" && imgB64.length > 0) {
+            contentParts.push({
+              inlineData: { mimeType: "image/jpeg", data: imgB64 },
+            });
+          }
+        }
+      } else if (fileBase64 && typeof fileBase64 === "string") {
+        const cleanB64 = fileBase64.includes(",")
+          ? fileBase64.slice(fileBase64.indexOf(",") + 1)
+          : fileBase64;
+        contentParts.push({
+          inlineData: { mimeType: normalizedMime, data: cleanB64 },
+        });
+      }
+
+      if (hasExtractedText) {
+        contentParts.push({
+          text: `Texto extraído del archivo (${fileName || "gases"}):\n${String(extractedText).slice(0, 15000)}`,
+        });
+      }
+
+      contentParts.push({
+        text: `Contexto de carga: ${
+          tipoMuestraEsperado === "venosa"
+            ? "Muestra Venosa (priorizar cLac / Lactato sérico y hora)."
+            : tipoMuestraEsperado === "arterial"
+            ? "Muestra Arterial (priorizar pO2(T)c, sO2 y FO2(I) para calcular PaFiO2 y SpFiO2)."
+            : "Auto-detectar si es muestra Venosa o Arterial y extraer sus valores."
+        }`,
+      });
+
+      const aiResp = await generateWithFallback(
+        ai,
+        "gemini-4-hydrogen",
+        "gemini-3.1-flash-lite",
+        (model, isFallback) => ({
+          model,
+          contents: { parts: contentParts },
+          config: {
+            ...(isFallback ? {} : { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }),
+            systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: gasesSchema,
+          },
+        })
+      );
+
+      let rawJson = (aiResp.text || "").trim();
+      if (rawJson.startsWith("```")) {
+        rawJson = rawJson.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+      }
+      const parsed = rawJson ? JSON.parse(rawJson) : {};
+
+      const cleanNum = (s: unknown) =>
+        typeof s === "string" ? s.replace(/[^\d.,]/g, "").replace(",", ".") : "";
+
+      const tipoRaw = String(parsed.tipoMuestraDetectado || "").toLowerCase();
+      const tipoFinal: "venosa" | "arterial" =
+        tipoMuestraEsperado === "venosa"
+          ? "venosa"
+          : tipoMuestraEsperado === "arterial"
+          ? "arterial"
+          : tipoRaw.includes("ven")
+          ? "venosa"
+          : "arterial";
+
+      const hora = typeof parsed.fechaHora === "string" ? parsed.fechaHora.trim() : "";
+      const fechaCompleta =
+        typeof parsed.fechaCompleta === "string" ? parsed.fechaCompleta.trim() : hora;
+
+      const cLac = cleanNum(parsed.cLac);
+      const pO2 = cleanNum(parsed.pO2);
+      const sO2 = cleanNum(parsed.sO2);
+      const fio2 = cleanNum(parsed.fio2);
+
+      let pafiCalculado = "";
+      let safiCalculado = "";
+
+      if (fio2) {
+        let fNum = parseFloat(fio2);
+        if (!Number.isNaN(fNum) && fNum > 0) {
+          if (fNum > 1) fNum = fNum / 100;
+          if (pO2) {
+            const pNum = parseFloat(pO2);
+            if (!Number.isNaN(pNum)) pafiCalculado = (pNum / fNum).toFixed(1);
+          }
+          if (sO2) {
+            const sNum = parseFloat(sO2);
+            if (!Number.isNaN(sNum)) safiCalculado = (sNum / fNum).toFixed(1);
+          }
+        }
+      }
+
+      res.json({
+        tipoMuestraDetectado: tipoRaw || tipoFinal,
+        tipoAplicado: tipoFinal,
+        fechaHora: hora,
+        fechaCompleta,
+        cLac,
+        pO2,
+        sO2,
+        fio2,
+        pafiCalculado,
+        safiCalculado,
+        pao2Fio2Equipo: cleanNum(parsed.pao2Fio2Equipo),
+        evidencia: typeof parsed.evidencia === "string" ? parsed.evidencia.trim() : "",
+      });
+    } catch (err: any) {
+      console.error("Error interpretando muestra de gases:", err);
+      const status = typeof err?.status === "number" ? err.status : 500;
+      res.status(status >= 400 && status < 600 ? status : 500).json({
+        error: formatFriendlyGeminiError(
+          err,
+          "No fue posible interpretar la tirilla de gases. Verifique que la foto sea nítida."
         ),
       });
     }

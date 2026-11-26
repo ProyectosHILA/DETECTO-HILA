@@ -1,7 +1,24 @@
-import React from "react";
-import { LaboratoriosDOMData, ParaclinicoEntry } from "../types";
+import React, { useState } from "react";
+import { FotoGasClinico, LaboratoriosDOMData, ParaclinicoEntry } from "../types";
 import { FormattedTimeInput } from "./FormattedTimeInput";
-import { AlertCircle, Calculator, FlaskConical, Table2, TestTube2, Wind } from "lucide-react";
+import {
+  calcPaFiO2,
+  calcSpFiO2,
+  evaluarPlaquetasHemograma,
+} from "../utils/clinicaGases";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Calculator,
+  Camera,
+  CheckCircle2,
+  FlaskConical,
+  Lock,
+  Table2,
+  TestTube2,
+  Wind,
+  X,
+} from "lucide-react";
 
 interface FormularioLaboratoriosProps {
   data: LaboratoriosDOMData;
@@ -18,6 +35,8 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
   soloLectura = false,
   onAbrirListaCups,
 }) => {
+  const [fotoAmpliada, setFotoAmpliada] = useState<FotoGasClinico | null>(null);
+  const evalPlaquetas = evaluarPlaquetasHemograma(data.hemograma);
   const updateEntry = (
     key:
       | "hemograma"
@@ -45,27 +64,6 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
         [field]: val,
       },
     });
-  };
-
-  // Calculadoras PaFiO2 y SpFiO2 / SaFiO2
-  const calcPaFiO2 = (pao2Str: string, fio2Str: string) => {
-    const pao2 = parseFloat(pao2Str);
-    let fio2 = parseFloat(fio2Str);
-    if (!isNaN(pao2) && !isNaN(fio2) && fio2 > 0) {
-      if (fio2 > 1) fio2 = fio2 / 100; // Permite digitar 21% o 0.21
-      return (pao2 / fio2).toFixed(1);
-    }
-    return "";
-  };
-
-  const calcSpFiO2 = (spo2Str: string, fio2Str: string) => {
-    const spo2 = parseFloat(spo2Str);
-    let fio2 = parseFloat(fio2Str);
-    if (!isNaN(spo2) && !isNaN(fio2) && fio2 > 0) {
-      if (fio2 > 1) fio2 = fio2 / 100;
-      return (spo2 / fio2).toFixed(1);
-    }
-    return "";
   };
 
   const updateGases = (field: "checked" | "pao2" | "fio2" | "resultado" | "fechaHora", val: any) => {
@@ -138,6 +136,236 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
             </span>
           )}
         </div>
+      </div>
+
+      {/* 0. TABLA SUPERIOR: GASES (MUESTRAS VENOSAS Y GASES ARTERIALES - MÓDULO TERAPIAS) */}
+      <div className="p-4 border-b-2 border-[#007b8f]/40 bg-[#f0f9fa] space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <h4 className="font-black text-xs uppercase text-[#074c5d] tracking-wider flex items-center gap-1.5">
+              <Wind className="w-4 h-4 text-[#007b8f]" />
+              <span>GASES · Muestras Venosas y Gases Arteriales (TERAPIAS)</span>
+            </h4>
+            <p className="text-[11px] text-slate-600 font-semibold">
+              Los gases arteriales se habilitan al registrar el resultado de plaquetas en el Hemograma completo.
+            </p>
+          </div>
+
+          {/* MENSAJE DE PLAQUETAS EN CAMPO SUPERIOR AL LADO DE LOS EXÁMENES */}
+          <div className="lg:max-w-lg w-full">
+            {evalPlaquetas.estado === "adecuadas" && (
+              <div className="bg-emerald-50 border-2 border-emerald-500 text-emerald-950 rounded-xl px-3 py-2 flex items-start gap-2 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-snug">
+                  <span className="font-black block">
+                    Supera las 50.000 plaquetas/µL ({evalPlaquetas.plaquetasFormateadas}/µL)
+                  </span>
+                  <span className="font-semibold text-emerald-900">
+                    Sugerencia: El médico puede considerar ordenar gases arteriales de acuerdo con su condición clínica y el protocolo institucional.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {evalPlaquetas.estado === "trombocitopenia" && (
+              <div className="bg-red-50 border-2 border-red-500 text-red-950 rounded-xl px-3 py-2 flex items-start gap-2 shadow-sm">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-snug">
+                  <span className="font-black text-red-700 block uppercase">
+                    Riesgo de trombocitopenia ({evalPlaquetas.plaquetasFormateadas} plaquetas/µL &lt; 50.000/µL)
+                  </span>
+                  <span className="font-bold text-red-900">
+                    Alerta únicamente como sugerencia: se plantea evitar la punción arterial de acuerdo con la condición clínica y el protocolo institucional.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {(evalPlaquetas.estado === "sin_hemograma" ||
+              evalPlaquetas.estado === "sin_plaquetas") && (
+              <div className="bg-amber-50 border border-amber-400 text-amber-950 rounded-xl px-3 py-2 flex items-start gap-2">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-snug">
+                  <span className="font-black block">
+                    Gases arteriales en espera de Hemograma completo
+                  </span>
+                  <span className="font-semibold text-amber-900">
+                    Una vez se consiga el resultado de plaquetas en el Hemograma completo, se habilitarán los gases arteriales en Terapias.
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border border-[#007b8f] rounded-xl overflow-hidden shadow-sm bg-white">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr className="bg-[#083344] text-white font-black text-center divide-x divide-white/20">
+                <th className="p-2 w-36 text-left pl-3">Tipo de Muestra</th>
+                <th className="p-2 text-left pl-3">Parámetro / Examen (Terapias)</th>
+                <th className="p-2 w-32 sm:w-36">Fecha/Hora</th>
+                <th className="p-2 w-44 sm:w-56">Valor / Resultado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#007b8f]/30">
+              {/* Muestras venosas: Lactato sérico */}
+              <tr className="bg-white">
+                <td className="p-2.5 font-black text-[#083344] bg-[#e6f6f9] border-r border-[#007b8f]/30">
+                  Muestras venosas
+                </td>
+                <td className="p-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      disabled={soloLectura}
+                      checked={Boolean(data.lactatoSerico?.checked)}
+                      onChange={(e) => updateEntry("lactatoSerico", "checked", e.target.checked)}
+                      className="accent-[#007b8f]"
+                    />
+                    <span className="font-black text-slate-900">
+                      Muestras venosas: Lactato sérico (cLac)
+                    </span>
+                  </label>
+                </td>
+                <td className="p-1.5 border-l border-[#007b8f]/20">
+                  <FormattedTimeInput
+                    mode="datetime"
+                    disabled={soloLectura}
+                    value={data.lactatoSerico?.fechaHora || ""}
+                    onValueChange={(val) => updateEntry("lactatoSerico", "fechaHora", val)}
+                    placeholder="dd/mm hh:mm"
+                    className="w-full bg-[#f9fbfb] border border-slate-200 px-1.5 py-1 text-center font-mono rounded"
+                  />
+                </td>
+                <td className="p-1.5 border-l border-[#007b8f]/20">
+                  <input
+                    type="text"
+                    disabled={soloLectura}
+                    value={data.lactatoSerico?.valor || ""}
+                    onChange={(e) => updateEntry("lactatoSerico", "valor", e.target.value)}
+                    placeholder="mmol/L (cLac)"
+                    className="w-full bg-[#f9fbfb] border border-slate-200 px-2 py-1 font-bold rounded"
+                  />
+                </td>
+              </tr>
+
+              {/* Gases arteriales: (PaO2 / FiO2 - PaFiO2) */}
+              <tr
+                className={
+                  !evalPlaquetas.gasesArterialesHabilitados
+                    ? "bg-slate-100/80 opacity-80"
+                    : "bg-[#f8fdff]"
+                }
+              >
+                <td className="p-2.5 font-black text-[#083344] bg-[#e6f6f9] border-r border-[#007b8f]/30">
+                  Gases arteriales
+                </td>
+                <td className="p-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      disabled={
+                        soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados
+                      }
+                      checked={Boolean(data.gasesPaFiO2?.checked)}
+                      onChange={(e) => updateGases("checked", e.target.checked)}
+                      className="accent-[#007b8f]"
+                    />
+                    <div>
+                      <span className="font-black text-slate-900 block">
+                        Gases arteriales: (PaO₂ / FiO₂ - PaFiO₂)
+                      </span>
+                      {!evalPlaquetas.gasesArterialesHabilitados && (
+                        <span className="text-[10px] font-bold text-amber-800 inline-flex items-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          Requiere resultado de plaquetas en Hemograma completo
+                        </span>
+                      )}
+                    </div>
+                  </label>
+                </td>
+                <td className="p-1.5 border-l border-[#007b8f]/20">
+                  <FormattedTimeInput
+                    mode="time"
+                    disabled={
+                      soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados
+                    }
+                    value={data.gasesPaFiO2?.fechaHora || ""}
+                    onValueChange={(val) => updateGases("fechaHora", val)}
+                    placeholder="hh:mm"
+                    className="w-full bg-white border border-slate-200 px-1.5 py-1 text-center font-mono rounded disabled:bg-slate-100"
+                  />
+                </td>
+                <td className="p-1.5 border-l border-[#007b8f]/20">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      disabled={
+                        soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados
+                      }
+                      value={data.gasesPaFiO2?.resultado || ""}
+                      onChange={(e) => updateGases("resultado", e.target.value)}
+                      placeholder={
+                        evalPlaquetas.gasesArterialesHabilitados
+                          ? "PaFiO₂ (mmHg)"
+                          : "Bloqueado sin Hemograma"
+                      }
+                      className="w-full bg-emerald-50/70 border border-emerald-300 px-2 py-1 font-black text-emerald-950 font-mono rounded disabled:bg-slate-200 disabled:border-slate-300 disabled:text-slate-500"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Evidencia Fotográfica de Gases cargada en Terapias */}
+        {Array.isArray(data.fotosGases) && data.fotosGases.length > 0 && (
+          <div className="bg-white border border-cyan-300 rounded-xl p-3 space-y-2">
+            <span className="text-[11px] font-black uppercase text-[#083344] flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5 text-cyan-700" />
+              <span>
+                Evidencia Fotográfica de Muestras de Gases Guardadas en Servidor ({data.fotosGases.length})
+              </span>
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              {data.fotosGases.map((foto) => (
+                <button
+                  key={foto.id}
+                  type="button"
+                  onClick={() => setFotoAmpliada(foto)}
+                  className="text-left bg-slate-50 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-400 rounded-xl p-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <img
+                    src={foto.url}
+                    alt={foto.nombreArchivo}
+                    className="w-14 h-14 object-cover rounded-lg border border-slate-300 shrink-0 bg-slate-200"
+                  />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <span
+                      className={`inline-block text-[10px] font-black px-1.5 py-0.5 rounded uppercase ${
+                        foto.tipo === "venosa"
+                          ? "bg-purple-100 text-purple-900"
+                          : "bg-cyan-100 text-cyan-900"
+                      }`}
+                    >
+                      {foto.tipo === "venosa" ? "Muestra Venosa" : "Gases Arteriales"}
+                    </span>
+                    <p className="text-[11px] font-bold text-slate-800 truncate">
+                      {foto.resumen || foto.nombreArchivo}
+                    </p>
+                    {foto.fechaHora && (
+                      <p className="text-[10px] font-mono text-slate-500">
+                        Hora: {foto.fechaHora}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 1. SECCIÓN D: PARACLÍNICOS DE LAS ÚLTIMAS 6 HORAS (DOM) */}
@@ -526,44 +754,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 </tr>
               )}
 
-              {/* CARDIOVASCULAR Y METABÓLICO (si es Rojo u opcional para completar DOM) */}
-              <tr className="bg-[#fbfdfd]">
-                <td className="p-2.5 font-black text-[#074c5d] bg-[#f0f9fa] border-r border-[#007b8f]/30">
-                  Cardiovascular
-                </td>
-                <td className="p-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={soloLectura}
-                      checked={Boolean(data.lactatoSerico?.checked)}
-                      onChange={(e) => updateEntry("lactatoSerico", "checked", e.target.checked)}
-                      className="accent-[#007b8f]"
-                    />
-                    <span className="font-bold text-slate-800">Lactato sérico</span>
-                  </label>
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <FormattedTimeInput
-                    mode="datetime"
-                    disabled={soloLectura}
-                    value={data.lactatoSerico?.fechaHora || ""}
-                    onValueChange={(val) => updateEntry("lactatoSerico", "fechaHora", val)}
-                    placeholder="dd/mm hh:mm"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-1 text-center font-mono rounded"
-                  />
-                </td>
-                <td className="p-1.5 border-l border-[#007b8f]/20">
-                  <input
-                    type="text"
-                    disabled={soloLectura}
-                    value={data.lactatoSerico?.valor || ""}
-                    onChange={(e) => updateEntry("lactatoSerico", "valor", e.target.value)}
-                    placeholder="mmol/L"
-                    className="w-full bg-white border border-slate-200 px-1.5 py-1 font-bold rounded"
-                  />
-                </td>
-              </tr>
+              {/* METABÓLICO (Lactato sérico ahora en tabla superior de Gases Venosos) */}
 
               <tr className="bg-white">
                 <td className="p-2.5 font-black text-[#074c5d] bg-[#f0f9fa] border-r border-[#007b8f]/30">
@@ -687,7 +878,7 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
               <label className="flex items-center gap-2 font-black text-slate-900 cursor-pointer">
                 <input
                   type="checkbox"
-                  disabled={soloLectura || esRojo}
+                  disabled={soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados}
                   checked={Boolean(data.gasesPaFiO2?.checked)}
                   onChange={(e) => updateGases("checked", e.target.checked)}
                   className="accent-[#007b8f] w-4 h-4"
@@ -696,13 +887,20 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
               </label>
               <FormattedTimeInput
                 mode="time"
-                disabled={soloLectura || esRojo}
+                disabled={soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados}
                 value={data.gasesPaFiO2?.fechaHora || ""}
                 onValueChange={(val) => updateGases("fechaHora", val)}
                 placeholder="Hora (hh:mm)"
-                className="w-24 bg-slate-50 border border-slate-300 px-2 py-0.5 text-center rounded font-mono text-[11px]"
+                className="w-24 bg-slate-50 border border-slate-300 px-2 py-0.5 text-center rounded font-mono text-[11px] disabled:bg-slate-100"
               />
             </div>
+
+            {!evalPlaquetas.gasesArterialesHabilitados && (
+              <div className="bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                <span>Habilitado al ingresar resultado de plaquetas en Hemograma completo.</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-2 items-end">
               <div>
@@ -710,11 +908,11 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <input
                   type="number"
                   step="any"
-                  disabled={soloLectura || esRojo}
+                  disabled={soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados}
                   value={data.gasesPaFiO2?.pao2 || ""}
                   onChange={(e) => updateGases("pao2", e.target.value)}
                   placeholder="ej. 75"
-                  className="w-full bg-[#f0f9fa] border border-[#9fd5de] px-2 py-1.5 rounded font-bold text-center"
+                  className="w-full bg-[#f0f9fa] border border-[#9fd5de] px-2 py-1.5 rounded font-bold text-center disabled:bg-slate-100"
                 />
               </div>
               <div>
@@ -722,22 +920,22 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
                 <input
                   type="number"
                   step="any"
-                  disabled={soloLectura || esRojo}
+                  disabled={soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados}
                   value={data.gasesPaFiO2?.fio2 || ""}
                   onChange={(e) => updateGases("fio2", e.target.value)}
                   placeholder="ej. 0.40 o 40"
-                  className="w-full bg-[#f0f9fa] border border-[#9fd5de] px-2 py-1.5 rounded font-bold text-center"
+                  className="w-full bg-[#f0f9fa] border border-[#9fd5de] px-2 py-1.5 rounded font-bold text-center disabled:bg-slate-100"
                 />
               </div>
               <div>
                 <span className="text-[10px] font-black text-[#0b4d6c] block">Resultado PaFiO₂</span>
                 <input
                   type="text"
-                  disabled={soloLectura || esRojo}
+                  disabled={soloLectura || esRojo || !evalPlaquetas.gasesArterialesHabilitados}
                   value={data.gasesPaFiO2?.resultado || ""}
                   onChange={(e) => updateGases("resultado", e.target.value)}
                   placeholder="PaFiO₂"
-                  className="w-full bg-emerald-50 border-2 border-emerald-400 px-2 py-1.5 rounded font-black text-center text-emerald-900 font-mono"
+                  className="w-full bg-emerald-50 border-2 border-emerald-400 px-2 py-1.5 rounded font-black text-center text-emerald-900 font-mono disabled:bg-slate-100 disabled:border-slate-300"
                 />
               </div>
             </div>
@@ -861,6 +1059,45 @@ export const FormularioLaboratorios: React.FC<FormularioLaboratoriosProps> = ({
           </div>
         </div>
       </div>
+      {/* MODAL VISOR DE FOTO AMPLIADA */}
+      {fotoAmpliada && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setFotoAmpliada(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full p-4 space-y-3 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div>
+                <span className="text-xs font-black uppercase text-[#083344] block">
+                  {fotoAmpliada.tipo === "venosa"
+                    ? "Muestra Venosa (Lactato / cLac)"
+                    : "Gases Arteriales (PaFiO₂ / SpFiO₂)"}
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  {fotoAmpliada.resumen || fotoAmpliada.nombreArchivo}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFotoAmpliada(null)}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-auto bg-slate-900 rounded-xl flex items-center justify-center p-2">
+              <img
+                src={fotoAmpliada.url}
+                alt={fotoAmpliada.nombreArchivo}
+                className="max-w-full max-h-[65vh] object-contain rounded"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

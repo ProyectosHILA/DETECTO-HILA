@@ -255,12 +255,28 @@ export interface VasopresoresData {
   segundoVasoactivoAccesoCentral?: boolean;
   responsable?: string;
   observaciones?: string;
+  superficieCorporal?: string;
+  hidrocortisonaDosisMg?: string;
+  mgTotalesPreparacion?: string;
+  volumenTotalCc?: string;
+  ordenMedicaTexto?: string;
+  fechaOrden?: string;
 }
 
 export interface ParaclinicoEntry {
   checked?: boolean;
   fechaHora?: string;
   valor?: string;
+}
+
+export interface FotoGasClinico {
+  id: string;
+  tipo: "venosa" | "arterial";
+  url: string;
+  nombreArchivo: string;
+  fechaHora?: string;
+  fechaCaptura?: number;
+  resumen?: string;
 }
 
 export interface LaboratoriosDOMData {
@@ -292,6 +308,7 @@ export interface LaboratoriosDOMData {
     resultado?: string;
     fechaHora?: string;
   };
+  fotosGases?: FotoGasClinico[];
   hemocultivosA3?: {
     tomado?: boolean;
     fechaHora?: string;
